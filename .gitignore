@@ -6,7 +6,7 @@ Arduino/Libraries/*
 !Arduino/Libraries/SkuttlebotPWM/
 
 # Ignore specific file in Skuttleshell
-Arduino/Skuttleshell/config.h
+#Arduino/Skuttleshell/config.h
 
 # Ignore typical temporary files that should not be committed
 *.log
