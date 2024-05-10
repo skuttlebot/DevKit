@@ -1,0 +1,28 @@
+{
+  "name": "skuttlecommand",
+  "version": "1.0.0",
+  "description": "Basic core program to issue commands to body",
+  "main": "PC/UI/main.js",
+  "scripts": {
+    "start": "concurrently \"npm run start-server\" \"npm run start-electron\"",
+    "start-server": "node PC/Server/server.js",
+    "start-electron": "electron PC/UI/main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skuttlebot/Skuttlebot/Skuttlecommand"
+  },
+  "author": "MatthewJane",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2",
+    "robotjs": "^0.6.0",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "electron": "^25.3.1"
+  },
+  "type": "commonjs"
+}
