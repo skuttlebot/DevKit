@@ -1,3 +1,21 @@
+# Ignore node modules
+node_modules/
+
+# Ignore all files in the Arduino/Libraries directory except for SkuttlebotPWM
+Arduino/Libraries/*
+!Arduino/Libraries/SkuttlebotPWM/
+
+# Ignore specific file in Skuttleshell
+Arduino/Skuttleshell/config.h
+
+# Ignore typical temporary files that should not be committed
+*.log
+*.tmp
+*.bak
+
+# Ignore system files
+.DS_Store
+Thumbs.db
 # Prerequisites
 *.d
 
