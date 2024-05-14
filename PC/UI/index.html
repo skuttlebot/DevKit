@@ -1,20 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Skuttlebot Controller</title>
-  </style>
+  <link rel="stylesheet" href="SkuttleCSS.css">
 </head>
 <body>
   <div class="container">
-    <div id="status" class="status">Waiting for Device</div> <!-- Display connection status here -->
-    <div id="gamepStatus">No gamepad connected</div>
-    <div class="content">
+    <header>
       <h1>Skuttlebot Controller</h1>
-      <button id="playToneButton">Play Tone</button>
-      <div id="start">
-        <p>Press any button on your gamepad to start.</p>
+    </header>
+    <main>
+      <div id="status" class="status">Waiting for Device</div>
+      <div id="gamepStatus" class="gamepad-status">No gamepad connected</div>
+      <div class="controls">
+        <button id="playToneButton" class="control-button">Play Tone</button>
+        <div id="start" class="start-message">
+          <p>Press any button on your gamepad to start.</p>
+        </div>
       </div>
-    </div>
+      <div id="cameraWindow" class="camera-window">
+        <img id="cameraFeed" class="camera-feed" src="" alt="Camera Feed">
+      </div>
+      <div id="commandLog" class="command-log">
+        <p>Command Log</p>
+      </div>
+    </main>
   </div>
   <script src="renderer.js"></script>
 </body>
