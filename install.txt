@@ -1,0 +1,5 @@
+Place this file in a location you want to install the Skuttlebot folders into.
+
+The bat file should install necessary components.
+
+Upon attempting to run the SkuttleStart file, you may be asked to download additional elements via pip.
