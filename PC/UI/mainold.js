@@ -153,7 +153,10 @@ function connectcam(){
 
         wsCamera.on('close', () => {
             if(!onerror){
-            console.log('Camera connection closed');       
+            console.log('Camera connection closed'); 
+            if (mainWindow) {
+                mainWindow.webContents.send('video-disconnected');
+            }      
             }
         });
 
@@ -260,7 +263,7 @@ function createWindow() {
 		}
 	});
 
-	mainWindow.loadFile('index.html');
+	mainWindow.loadFile(path.join(__dirname, 'index.html'));
 	mainWindow.on('closed', () => {
 		mainWindow = null;
 	});
