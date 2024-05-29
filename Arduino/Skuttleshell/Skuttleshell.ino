@@ -192,7 +192,7 @@ void onWebSocketEventCamera(AsyncWebSocket *server, AsyncWebSocketClient *client
    {
       case WS_EVT_CONNECT:
          Serial.println("WebSocket Camera client connected");
-         //skuttlecamInstance.on();
+         if(!CAMINIT){skuttlecamInstance.on();}
          cameraClientId = client->id();
   
          Serial.print("cameraClientID = ");
@@ -202,6 +202,7 @@ void onWebSocketEventCamera(AsyncWebSocket *server, AsyncWebSocketClient *client
          Serial.println("WebSocket Camera client disconnected");
          skuttlecamInstance.off();
          wsCamera.cleanupClients();
+         cameraClientId = 0;
          break;
       case WS_EVT_DATA:
          // Currently no incoming data on this instance but might in the future (Sound)
@@ -231,8 +232,8 @@ void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
       case WS_EVT_DATA:{
         //Serial.println("time: "+String(millis())+", datalength: "+len);
         skuttlesound.addToBuffer(data, len);
-        String command =("~"); //String("heartbeat,") + MODULE + "," + ID;
-        wsCommand.textAll(command);
+        //String command =("~"); //String("heartbeat,") + MODULE + "," + ID;
+        //wsCommand.textAll(command);
         //Serial.print(command);
          break;
       }

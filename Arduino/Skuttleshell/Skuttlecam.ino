@@ -54,10 +54,9 @@ void Skuttlecam::on() {
   if (err != ESP_OK) {
     Serial.printf("Camera initialization failed with error 0x%x", err);
     return;
-  } else if (err ==ESP_OK) {
+  } else {
       Serial.println("Camera initialized");
       CAMINIT=true;
-  }else{Serial.println("cam awol");
   }
 
   if(psramFound()){
@@ -74,7 +73,6 @@ void Skuttlecam::on() {
 }
 
 void Skuttlecam::off() {
-  //esp_camera_deinit();
   String msg ="I've turned the camera off!";
   Serial.println(msg);
   wsCommand.textAll(msg);
@@ -83,7 +81,7 @@ void Skuttlecam::off() {
     esp_camera_fb_return(fb);
     fb = nullptr;       // Set fb to nullptr after returning the frame buffer
   }
-  cameraClientId=0;
+  esp_camera_deinit();
   CAMINIT=false;
 }
 void Skuttlecam::data() 
@@ -105,7 +103,7 @@ void Skuttlecam::data()
         return;
     }
 
-    unsigned long  startTime2 = millis();
+    unsigned long  startTime = millis();
     //const String blobType = "video/mjpg";  // Replace with the actual Blob type
     
     wsCamera.binary(cameraClientId, fb->buf, fb->len);
@@ -115,16 +113,15 @@ void Skuttlecam::data()
     while (true)
     {
       AsyncWebSocketClient * clientPointer = wsCamera.client(cameraClientId);
-      if (!clientPointer || !(clientPointer->queueIsFull()))
-        {break;}
+      if (!wsCamera.client(cameraClientId)->queueIsFull()) {break;}//if there is a client and the queue isnt full
 
       //Serial.print("+");
-      if (millis() - startTime2 > 5000)
+      if (millis() - startTime > 5000)
         {
         Serial.println("WebSocket message delivery timeout");
         break;
         }
-      delay(1);
+      yield();
     }
     esp_camera_fb_return(fb);
     

@@ -8,6 +8,7 @@ extern AsyncWebSocket wsCamera;
 extern AsyncWebSocket wsCommand;
 extern bool CAMINIT;
 
+
 class Skuttlecam {
 private:
     camera_fb_t *fb;          

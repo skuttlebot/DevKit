@@ -165,7 +165,7 @@ function connectcam(){
         // Listen for messages from the camera server
         wsCamera.on('message', (data) => {
             // Assuming 'data' is binary video data received on wsCamera
-            console.log('+');
+            //console.log('+');
             if (mainWindow) {
                 mainWindow.webContents.send('video', data);
             }

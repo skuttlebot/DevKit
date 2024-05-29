@@ -201,7 +201,7 @@ function scangamepads() {
 }
 
 function createCameraWindow() {
-	const cameraWindow = document.createElement("div");
+	/*const cameraWindow = document.createElement("div");
 	cameraWindow.id = "cameraWindow";
 	cameraWindow.style.position = "absolute";
 	cameraWindow.style.top = "50px";
@@ -209,7 +209,7 @@ function createCameraWindow() {
 	cameraWindow.style.width = "480px";
 	cameraWindow.style.height = "360px";
 	cameraWindow.style.border = "2px solid #ccc";
-	document.body.appendChild(cameraWindow);
+	document.body.appendChild(cameraWindow);*/
 
 	// Add the video element to the camera window
 	const videoElement = document.createElement("img");

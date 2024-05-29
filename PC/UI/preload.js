@@ -17,13 +17,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 // Listen for messages from the main process and forward them to the renderer
 ipcRenderer.on('status', (event, message) => {
-    console.log(`${message} recieved in preload`);
+    //console.log(`${message} recieved in preload`);
     window.dispatchEvent(new MessageEvent('message', { data: { type: 'status', message } }));
 });
 
 
 ipcRenderer.on('video', (event, message) => {
-  console.log(`Video recieved in preload`);
+  //console.log(`Video recieved in preload`);
   window.dispatchEvent(new MessageEvent('message', { data: { type: 'video', message } }));
 });
 
