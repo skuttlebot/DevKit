@@ -46,8 +46,8 @@ void Skuttlesound::begin() {
   };
 
   const i2s_pin_config_t pin_config = {
-      .bck_io_num = 2, // BCKL
-      .ws_io_num = 14, // LRCL
+      .bck_io_num = 2, // BLCK
+      .ws_io_num = 14, // LRC
       .data_out_num = 4, // DIN 
       .data_in_num = I2S_PIN_NO_CHANGE
   };
