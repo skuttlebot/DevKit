@@ -19,7 +19,7 @@ int posVal = 0;
 int ttime = millis();
 int rwtime = millis();
 int lwtime = millis();
-int tpos = 0;
+int tpos = 180;
 int rmag =0;
 int lmag =0;
 int lpos=90;
@@ -36,7 +36,7 @@ void Skuttlemove::setup(){
   CamTilt.attach(CTPIN);
   Rwheel.write(90); // Initial position
   Lwheel.write(90); // Initial position
-  CamTilt.write(0); // Initial position
+  CamTilt.write(175); // Initial position
   delay(3000);
   Serial.println("servos Initialized");
   Rwheel.detach();
@@ -48,7 +48,7 @@ void Skuttlemove::setup(){
 void Skuttlemove::action(bool COMMAND[], float MOVE[]) {
   if(!TON){
     CamTilt.attach(CTPIN);
-    CamTilt.write(20);
+    CamTilt.write(175);
     Serial.println("tilt attached");
     TON=true;
   }
@@ -121,7 +121,7 @@ void Skuttlemove::action(bool COMMAND[], float MOVE[]) {
 
 void tilt(int tmag) {
   if (millis() - ttime > 50) {
-    tpos = constrain(tpos + tmag, 7, 67);
+    tpos = constrain(tpos + tmag, 140, 180);
     CamTilt.write(tpos);
     String msg = "cam pos: " + String(tpos);
     Serial.println(msg);
