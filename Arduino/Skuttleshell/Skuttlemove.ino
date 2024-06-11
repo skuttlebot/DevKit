@@ -19,7 +19,7 @@ int posVal = 0;
 int ttime = millis();
 int rwtime = millis();
 int lwtime = millis();
-int tpos = 180;
+int tpos = 175;
 int rmag =0;
 int lmag =0;
 int lpos=90;
@@ -46,12 +46,12 @@ void Skuttlemove::setup(){
 
 // Function implementation of the action function
 void Skuttlemove::action(bool COMMAND[], float MOVE[]) {
-  if(!TON){
+  /*if(!TON){
     CamTilt.attach(CTPIN);
     CamTilt.write(175);
     Serial.println("tilt attached");
     TON=true;
-  }
+  }*/
   //mode0 -TURRET-
   if (MODE == 0) { 
     mag=15; 
@@ -121,12 +121,14 @@ void Skuttlemove::action(bool COMMAND[], float MOVE[]) {
 
 void tilt(int tmag) {
   if (millis() - ttime > 50) {
+    CamTilt.attach(CTPIN);
     tpos = constrain(tpos + tmag, 140, 180);
     CamTilt.write(tpos);
     String msg = "cam pos: " + String(tpos);
     Serial.println(msg);
     wsCommand.textAll(msg);
     ttime = millis();
+    CamTilt.detach();
   }
 }
 
