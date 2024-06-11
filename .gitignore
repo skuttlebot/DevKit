@@ -1,9 +1,6 @@
 # Ignore node modules
 node_modules/
 
-# Ignore all files in the Arduino/Libraries directory except for SkuttlebotPWM
-Arduino/Libraries/*
-!Arduino/Libraries/Skuttlebot_PWM_Servo_Driver_Library/
 
 # Ignore specific file in Skuttleshell
 Arduino/Skuttleshell/config.h
