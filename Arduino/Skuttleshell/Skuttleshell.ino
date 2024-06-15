@@ -17,9 +17,6 @@
 //#define FLASHLIGHT 4//33-red 4-flash
 #define REDLIGHT 33
 
-
-
-
 SkuttleWIFI skuttleWIFI;  //instance of SkuttleWIFI class
 Skuttlemove actionitem; // Create an instance of the Skuttlemove class
 Skuttlecam skuttlecamInstance;  //instance of skuttlecam class
