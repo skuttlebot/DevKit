@@ -18,5 +18,5 @@ public:
     Skuttlecam();             
     void on();
     void off();
-    void data();
+    //void camTask();
 };

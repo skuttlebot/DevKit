@@ -9,7 +9,7 @@
 #define BITS_PER_SAMPLE I2S_BITS_PER_SAMPLE_16BIT
 //#define BUFFER_SIZE 88200  //1 second defined in .h
 //#define CHUNKSIZE 8820 // .1 second defined in .h
-#define PACKETSIZE
+//#define PACKETSIZE
 
 uint8_t* audioBuffer = nullptr;
 size_t writeIndex = 0;  // Where to write incoming data
@@ -65,18 +65,18 @@ void Skuttlesound::begin() {
   }
   Serial.println("Audio Systems Online"); 
   xTaskCreatePinnedToCore(
-    AudioProcessingTask, // Task function
+    audioTask, // Task function
     "AudioTask",         // Name of the task
     4096,                // Stack size in words
     this,                // Pass the instance of Skuttlesound for context
-    configMAX_PRIORITIES - 1, // Priority of the task
+    3,                   // Priority of the task
     NULL,                // Task handle
     0);                  // Core ID (0 or 1, tskNO_AFFINITY for no affinity)
   Serial.println("Audio Core Set");   
 }
 
 // Implementation of the static task function
-void Skuttlesound::AudioProcessingTask(void *pvParameters) {
+void Skuttlesound::audioTask(void *pvParameters) {
   // Cast the void pointer back to Skuttlesound instance
   Skuttlesound* soundInstance = static_cast<Skuttlesound*>(pvParameters);
   for (;;) {
@@ -113,10 +113,8 @@ void Skuttlesound::play(void *instance) {
         if (bytes_written != CHUNKSIZE) {
             Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, CHUNKSIZE);
         }
-  } else {
-    //Serial.println("Not enough data to play");
-    // Optional: Handle underflow, e.g., by waiting or inserting silence
-  }
+
+    }
 }
 
 void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {

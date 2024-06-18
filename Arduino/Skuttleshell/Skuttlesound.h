@@ -20,7 +20,7 @@ public:
   void play(); // Play sound via I2S
   void addToBuffer(const uint8_t* data, size_t len); 
   void processBuffer();
-  static void AudioProcessingTask(void *pvParameters); // Task function declaration
+  static void audioTask(void *pvParameters); // Task function declaration
 };
 
 #endif

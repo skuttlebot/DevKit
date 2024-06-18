@@ -4,12 +4,43 @@
 #define CAMERA_MODEL_AI_THINKER  // Has PSRAM
 #include "camera_pins.h"
 #include "camera_index.h"
+
 extern AsyncWebSocket wsCamera;
 extern AsyncWebSocket wsCommand;
 bool CAMINIT=false;
 
 Skuttlecam::Skuttlecam() {
     fb = nullptr;            // Initialize fb in the constructor
+}
+
+void camTask(void *pvParameters) {
+  Skuttlecam *camera = static_cast<Skuttlecam *>(pvParameters);  // Get the Skuttlecam instance
+  while(true){
+    if (cameraClientId == 0 || !CAMINIT){//punt 
+    }else{
+      camera_fb_t *fb = esp_camera_fb_get();
+      if (!fb) {//if we didnt get a fram
+        Serial.println("Frame buffer could not be acquired");
+      }else{ //we did!
+        unsigned long  startTime = millis();
+        //const String blobType = "video/mjpg";  // Replace with the actual Blob type
+        wsCamera.binary(cameraClientId, fb->buf, fb->len);
+        //Wait for message to be delivered
+        while (true){
+          AsyncWebSocketClient * clientPointer = wsCamera.client(cameraClientId);
+          if (!wsCamera.client(cameraClientId)->queueIsFull()) {break;}//if there is a client and the queue isnt full
+          //Serial.print("+");
+          if (millis() - startTime > 5000){
+            Serial.println("WebSocket message delivery timeout");
+            break;
+          }
+          yield();
+        }
+        esp_camera_fb_return(fb);
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(100)); // Adjust the delay as needed
+  }
 }
 
 void Skuttlecam::on() {
@@ -70,6 +101,15 @@ void Skuttlecam::on() {
     config.fb_location = CAMERA_FB_IN_DRAM;
     delay(100);
   }
+   xTaskCreatePinnedToCore(
+    camTask,          //task function
+    "CameraTask",     //task name
+    4096,             //stack size
+    this,             //params
+    2,                //priority
+    NULL,             //task handle 
+    1                 //core (0 or 1)
+  );
 }
 
 void Skuttlecam::off() {
@@ -84,45 +124,4 @@ void Skuttlecam::off() {
   esp_camera_deinit();
   CAMINIT=false;
 }
-void Skuttlecam::data() 
-{
-    if (cameraClientId == 0 || !CAMINIT)
-    {
-      return;
-    }
-    //Serial.println(cameraClientId);
-    //heap_caps_malloc_extmem_enable(20000);
-    //unsigned long  startTime1 = millis();
-    //capture a frame
-    //Serial.printf("Free heap before acquiring frame: %d\n", ESP.getFreeHeap());
-    camera_fb_t *fb = esp_camera_fb_get();
-    //Serial.printf("Free heap after acquiring frame: %d\n", ESP.getFreeHeap());
-    if (!fb) 
-    {
-        Serial.println("Frame buffer could not be acquired");
-        return;
-    }
 
-    unsigned long  startTime = millis();
-    //const String blobType = "video/mjpg";  // Replace with the actual Blob type
-    
-    wsCamera.binary(cameraClientId, fb->buf, fb->len);
-    
-      
-    //Wait for message to be delivered
-    while (true)
-    {
-      AsyncWebSocketClient * clientPointer = wsCamera.client(cameraClientId);
-      if (!wsCamera.client(cameraClientId)->queueIsFull()) {break;}//if there is a client and the queue isnt full
-
-      //Serial.print("+");
-      if (millis() - startTime > 5000)
-        {
-        Serial.println("WebSocket message delivery timeout");
-        break;
-        }
-      yield();
-    }
-    esp_camera_fb_return(fb);
-    
-}

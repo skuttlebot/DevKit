@@ -29,7 +29,7 @@ AsyncWebSocket wsCamera("/Camera");
 AsyncWebSocket wsSound("/Sound");
 AsyncWebSocketClient *clientCommand = NULL; // To track the client connection
 
-long ptime = millis(); //pulse timer
+//long ptime = millis(); //pulse timer
 long mtime = millis();//motor timer
 const int mintraval = 100;
 long rssi;
@@ -51,16 +51,13 @@ void setup()
   Serial.println("Booting");
 
   skuttleWIFI.begin();
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
+  delay(100);
 
   skuttleWIFI.setupOTA();
-  delay(300);
+  delay(100);
 
   skuttleWIFI.setupMDNS("skuttlehost");
-  delay(300);
+  delay(100);
   SetupWSServer();
   Signalchk.begin();
   skuttlecamInstance.on();
@@ -74,18 +71,8 @@ void loop()
     //sends last known command
     actionitem.action(COMMAND, MOVE);
     mtime=millis();
-
   }
-  maintenance();//confirms connection
-  if(CAMON && cameraClientId!=0){skuttlecamInstance.data();} 
-  ArduinoOTA.handle();
-
-  /*if (availableAudio > 0 && (millis()-lastAudioPlay)>=audioSync){
-    Serial.println ("buffer size= "+ String(availableAudio)+ " elapsed time= "+ String(millis()-lastAudioPlay));
-    skuttlesound.play();
-    lastAudioPlay = millis();
-  }*/
-  
+ 
 }
 
 // Function to handle WebSocketCommand events
@@ -239,57 +226,6 @@ void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
       // Add other cases if needed
    }
 }
-void heartbeat()
-{
-  rssi = Signalchk.getRSSI();
-  String command =("RSSI(dBm): "+ String(rssi)); //String("heartbeat,") + MODULE + "," + ID;
-  wsCommand.textAll(command);
-  Serial.println(command);
-  //Serial.println(command);
-  //Serial.printf("SPIRam Total heap %d, SPIRam Free Heap %d\n", ESP.getPsramSize(), ESP.getFreePsram());
-  digitalWrite(REDLIGHT, HIGH);
-}
-
-void handshake()
-{
-	String msg = String("handshake,") + MODULE + "," + ID;
-	//Serial.println(msg);
-	wsCommand.textAll(msg);
-	float ptime = millis();
-	Serial.println ("sending handshake: "+msg);
-}
-
-void maintenance(){
-  if (clientCommand != NULL){ // if we think we are connected...
-    if (!clientCommand->status()){ // but really aren't...
-      Serial.println("WebSocket client disconnected");
-      clientCommand = NULL;
-    }
-    else {// we are connected
-      if ((millis() - ptime) > 3000){ // loop if 3 seconds have passed
-        if ((millis() - ptime) > 3600){
-          ptime = millis();
-          heartbeat();
-        }else if ((millis() - ptime) > 3400){
-          digitalWrite(REDLIGHT, LOW); // turns on LED at 3.4
-        }else if ((millis() - ptime) > 3200){
-          digitalWrite(REDLIGHT, HIGH); // turns off LED at 3.2
-        }else{
-          digitalWrite(REDLIGHT, LOW); // turns on LED at 3.0
-        }
-      }
-    }
-  }else{ // no client
-    if ((millis() - ptime) > 3000){
-      if ((millis() - ptime) < 3200){
-          digitalWrite(REDLIGHT, LOW); // LED on between 3.0 and 3.2 with no client
-      }else{ // >3.2 with no client executes heartbeat
-        ptime = millis();
-        heartbeat();
-      }  
-    }  
-  }
-}
 
 void SetupWSServer() {
     server.addHandler(&wsCommand);
@@ -301,4 +237,9 @@ void SetupWSServer() {
     Serial.println("WebSocket Handlers Set");
     server.begin();
     Serial.println("WebSocket Server Started");
+}
+
+void Broadcast(const char *message) {
+    Serial.println(message);
+    //ws.textAll(message);
 }

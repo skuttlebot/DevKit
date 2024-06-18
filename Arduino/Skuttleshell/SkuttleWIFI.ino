@@ -5,7 +5,10 @@
 #include "config.h" // Include the configuration header
 
 SkuttleWIFI::SkuttleWIFI() : APserver(80) {}
-
+long ptime = millis();
+float maxUsedHeapPercentage = 0;
+float maxUsedAudioStack = 0;
+float maxUsedCamStack = 0;
 void SkuttleWIFI::begin() {
     Serial.println("Initializing WiFi connection...");
     _connectToWiFi();
@@ -41,11 +44,6 @@ void SkuttleWIFI::_initWiFiManager() {
     
     ESPAsync_WiFiManager wifiManager(&APserver, NULL);
     wifiManager.setConfigPortalTimeout(300); //time in seconds
-    // Uncomment and adjust these as necessary for your setup
-    // wifiManager.setAPStaticIPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
-    // wifiManager.setMinimumSignalQuality();
-
-    // Set autoConnect timeout and start the portal
 
     if (!wifiManager.autoConnect("ESP32AP", "password")) {
       Serial.println("Failed to connect and hit timeout. Rebooting...");
@@ -78,6 +76,11 @@ void SkuttleWIFI::setupMDNS(const char* hostname) {
     }
 }
 
+void SkuttleWIFI::setupOTA() {
+    _setupOTA();
+ CreateTask();
+}
+
 void SkuttleWIFI::_setupOTA() {
     ArduinoOTA.onStart([]() {
         String type;
@@ -106,6 +109,116 @@ void SkuttleWIFI::_setupOTA() {
     Serial.println("OTA Ready");
 }
 
-void SkuttleWIFI::setupOTA() {
-    _setupOTA();
+void otaTask(void *parameter) {
+    while (true) {
+        ArduinoOTA.handle();
+        vTaskDelay(20);  // Short delay to yield to other tasks
+    }
+}
+
+void CreateTask() {
+    xTaskCreatePinnedToCore(
+        otaTask,       // Task function
+        "OTATask",     // Name of the task
+        2048,          // Stack size (in bytes)
+        NULL,          // Task input parameter
+        2,             // Priority of the task
+        NULL,          // Task handle
+        0              // Core where the task should run
+    );
+    Serial.println("OTATask Set");
+
+    xTaskCreatePinnedToCore(
+        flasherTask,       // Task function
+        "FlasherTask",     // Name of the task
+        2048,          // Stack size (in bytes)
+        NULL,          // Task input parameter
+        1,             // Priority of the task
+        NULL,          // Task handle
+        0              // Core where the task should run
+    );
+    Serial.println("Flasherask Set");
+}
+
+void flasherTask(void*parameter){
+  while (true) {
+    if (clientCommand != NULL){ // if we think we are connected...
+      if (!clientCommand->status()){ // but really aren't...
+        Serial.println("WebSocket client disconnected");
+        //send stop command
+      clientCommand = NULL;
+      }else {// we are connected
+        if ((millis() - ptime) > 3000){ // loop if 3 seconds have passed
+          if ((millis() - ptime) > 3600){
+            ptime = millis();
+            heartbeat();
+          }else if ((millis() - ptime) > 3400){
+            digitalWrite(REDLIGHT, LOW); // turns on LED at 3.4
+          }else if ((millis() - ptime) > 3200){
+            digitalWrite(REDLIGHT, HIGH); // turns off LED at 3.2
+          }else{
+            digitalWrite(REDLIGHT, LOW); // turns on LED at 3.0
+          }
+        }
+      }
+    }else{ // no client
+      if ((millis() - ptime) > 3000){
+        if ((millis() - ptime) < 3200){
+          digitalWrite(REDLIGHT, LOW); // LED on between 3.0 and 3.2 with no client
+        }else{ // >3.2 with no client executes heartbeat
+          ptime = millis();
+          heartbeat();
+        }  
+      }  
+    }
+  }  
+}
+
+void handshake()
+{
+	String msg = String("handshake,") + MODULE + "," + ID;
+	//Serial.println(msg);
+	wsCommand.textAll(msg);
+	ptime = millis();
+	Serial.println ("sending handshake: "+msg);
+}
+
+void heartbeat()
+{
+// Get RSSI
+    rssi = Signalchk.getRSSI();
+
+    // Get heap usage information
+    size_t totalHeap = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+    size_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    size_t usedHeap = totalHeap - freeHeap;
+    float usedHeapPercentage = (float)usedHeap / totalHeap * 100;
+
+    // Update max used heap percentage
+    if (usedHeapPercentage > maxUsedHeapPercentage) {
+        maxUsedHeapPercentage = usedHeapPercentage;
+    }
+
+    // Get stack high water marks (minimum free stack space since the task started)
+    /*UBaseType_t audioStackHighWaterMark = uxTaskGetStackHighWaterMark(audioTaskHandle);
+    UBaseType_t camStackHighWaterMark = uxTaskGetStackHighWaterMark(camTaskHandle);
+
+    // Calculate the used stack space as a percentage of the total stack size
+    float maxUsedAudioStack = ((float)(audioStackHighWaterMark) / audiostacksize) * 100;
+    float maxUsedAudioStack = ((float)(camStackHighWaterMark) / camstacksize) * 100;
+*/
+    // Create the command string
+    String command = "RSSI(dBm): " + String(rssi) +
+                     ", Used Heap(%): " + String(usedHeapPercentage, 2) +
+                     ", Max Used Heap(%): " + String(maxUsedHeapPercentage, 2); /*+
+                     ", Audio Stack(%): " + String(usedAudioStackPercentage, 2) +
+                     ", Cam Stack(%): " + String(usedCamStackPercentage, 2);*/
+
+    // Send the command via WebSocket
+    wsCommand.textAll(command);
+
+    // Print the command to the serial monitor
+    Serial.println(command);
+
+  digitalWrite(REDLIGHT, HIGH);
 }
