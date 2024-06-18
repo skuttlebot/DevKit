@@ -5,13 +5,15 @@
 //#include "BluetoothA2DPSource.h" //bt add
 
 #define I2S_PORT I2S_NUM_1
-//#define SAMPLE_RATE 44100 defined in .h
 #define BITS_PER_SAMPLE I2S_BITS_PER_SAMPLE_16BIT
-//#define BUFFER_SIZE 88200  //1 second defined in .h
-//#define CHUNKSIZE 8820 // .1 second defined in .h
-//#define PACKETSIZE
 
-uint8_t* audioBuffer = nullptr;
+#define SAMPLE_RATE 16000
+#define I2S_BUFFER_SIZE   1024
+#define CIRCULAR_BUFFER_SIZE (I2S_BUFFER_SIZE * 4) 
+
+
+
+uint8_t* circularBuffer = nullptr;
 size_t writeIndex = 0;  // Where to write incoming data
 size_t readIndex = 0;   // Where to read data to play
 size_t availableAudio = 0;  // Amount of audio data available in the buffer
@@ -22,8 +24,8 @@ Skuttlesound::Skuttlesound() {}
 
 void Skuttlesound::begin() {
       if (psramFound()) {
-        audioBuffer = (uint8_t*) heap_caps_malloc(BUFFER_SIZE, MALLOC_CAP_SPIRAM);
-        if (!audioBuffer) {
+        circularBuffer = (uint8_t*) heap_caps_malloc(CIRCULAR_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
+        if (!circularBuffer) {
             Serial.println("Failed to allocate audio buffer in PSRAM");
             return;
         }
@@ -39,9 +41,9 @@ void Skuttlesound::begin() {
       .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 10,//was 8
-      .dma_buf_len = 265,//was 64
-      .use_apll = true, //special clock
+      .dma_buf_count = 4,//was 8
+      .dma_buf_len = I2S_BUFFER_SIZE,
+      .use_apll = false, //special clock
       .tx_desc_auto_clear = true // Avoids noise in case of underflow
   };
 
@@ -81,54 +83,77 @@ void Skuttlesound::audioTask(void *pvParameters) {
   Skuttlesound* soundInstance = static_cast<Skuttlesound*>(pvParameters);
   for (;;) {
       // Since play is now a static function, pass the instance to it
-      play(soundInstance);
+      //play(soundInstance);
+      soundInstance->processAudio();
       vTaskDelay(pdMS_TO_TICKS(10)); // Adjust the delay as needed for your application 
   }
 }
 
 // Adjusted play method to be static and accept a Skuttlesound instance pointer
-void Skuttlesound::play(void *instance) {
+/*void Skuttlesound::play(void *instance) {
     auto* self = static_cast<Skuttlesound*>(instance); // Cast back to Skuttlesound instance
 
     // Ensure there's enough data to play
-    if (self->availableAudio >= CHUNKSIZE) {
+    if (self->availableAudio >= I2S_BUFFER_SIZE) {
         Serial.println(".");
-        uint8_t tempBuffer[CHUNKSIZE] = {0}; // Temporary buffer for data to play
+        uint8_t tempBuffer[I2S_BUFFER_SIZE] = {0}; // Temporary buffer for data to play
 
         // Fill tempBuffer with available audio data
-        for (size_t i = 0; i < CHUNKSIZE; ++i) {
+        for (size_t i = 0; i < I2S_BUFFER_SIZE; ++i) {
             tempBuffer[i] = self->audioBuffer[self->readIndex];
             self->availableAudio--;
-            self->readIndex = (self->readIndex + 1) % BUFFER_SIZE;
+            self->readIndex = (self->readIndex + 1) %CIRCULAR_BUFFER_SIZE;
         }
 
         // Play the chunk
         size_t bytes_written = 0;
-        esp_err_t result = i2s_write(I2S_PORT, tempBuffer, CHUNKSIZE, &bytes_written, portMAX_DELAY);
+        esp_err_t result = i2s_write(I2S_PORT, tempBuffer, I2S_BUFFER_SIZE, &bytes_written, portMAX_DELAY);
 
         // Check the result and bytes_written for diagnostics
         if (result != ESP_OK) {
             Serial.printf("i2s_write failed: %d\n", result);
         }
-        if (bytes_written != CHUNKSIZE) {
-            Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, CHUNKSIZE);
+        if (bytes_written != I2S_BUFFER_SIZE) {
+            Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, I2S_BUFFER_SIZE);
         }
 
     }
+}*/
+
+void Skuttlesound::processAudio() {  //sends to the i2s for playback
+    if (availableAudio >= I2S_BUFFER_SIZE) {
+        uint8_t tempBuffer[I2S_BUFFER_SIZE] = {0};
+
+        for (size_t i = 0; i < I2S_BUFFER_SIZE; ++i) {
+            tempBuffer[i] = circularBuffer[readIndex];
+            availableAudio--;
+            readIndex = (readIndex + 1) %CIRCULAR_BUFFER_SIZE;
+        }
+
+        size_t bytes_written = 0;
+        esp_err_t result = i2s_write(I2S_PORT, tempBuffer, I2S_BUFFER_SIZE, &bytes_written, portMAX_DELAY);
+
+        if (result != ESP_OK) {
+            Serial.printf("i2s_write failed: %d\n", result);
+        }
+        if (bytes_written != I2S_BUFFER_SIZE) {
+            Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, I2S_BUFFER_SIZE);
+        }
+    }
 }
 
-void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
+void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {//writes the data to the circular buffer
   //Serial.print ("Adding to buffer: ");
   for (size_t i = 0; i < len; ++i) {
-    if (availableAudio < BUFFER_SIZE) {
-        audioBuffer[writeIndex] = data[i];
-        writeIndex = (writeIndex + 1) % BUFFER_SIZE;
+    if (availableAudio <CIRCULAR_BUFFER_SIZE) {
+        circularBuffer[writeIndex] = data[i];
+        writeIndex = (writeIndex + 1) %CIRCULAR_BUFFER_SIZE;
         availableAudio++;
     }
   }
     //delay(1);
     // Only proceed if there's enough data to play
-  //if (availableAudio >= CHUNKSIZE) {play();} function move to task
+  //if (availableAudio >= I2S_BUFFER_SIZE) {play();} function move to task
 }
 
 
@@ -136,24 +161,24 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
 //Serial.println("Attempting to play buffer");
 
   Serial.println(".");
-  uint8_t tempBuffer[CHUNKSIZE] = {0}; // Temporary buffer for data to play
+  uint8_t tempBuffer[I2S_BUFFER_SIZE] = {0}; // Temporary buffer for data to play
   
   // Fill tempBuffer with available audio data
-  for (size_t i = 0; i < CHUNKSIZE; ++i) {
+  for (size_t i = 0; i < I2S_BUFFER_SIZE; ++i) {
     tempBuffer[i] = audioBuffer[readIndex];
     availableAudio--;
-    readIndex = (readIndex + 1) % BUFFER_SIZE;
+    readIndex = (readIndex + 1) %CIRCULAR_BUFFER_SIZE;
   }
   // Play the chunk
   size_t bytes_written = 0;
-  esp_err_t result = i2s_write(I2S_PORT, tempBuffer, CHUNKSIZE, &bytes_written, portMAX_DELAY);
+  esp_err_t result = i2s_write(I2S_PORT, tempBuffer, I2S_BUFFER_SIZE, &bytes_written, portMAX_DELAY);
 
   // Check the result and bytes_written for diagnostics
   if (result != ESP_OK) {
       Serial.printf("i2s_write failed: %d\n", result);
   }
-  if (bytes_written != CHUNKSIZE) {
-    Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, CHUNKSIZE);
+  if (bytes_written != I2S_BUFFER_SIZE) {
+    Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, I2S_BUFFER_SIZE);
   }
 } /*else {
   //Serial.println("Not enough data to play");

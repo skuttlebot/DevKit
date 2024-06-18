@@ -30,6 +30,8 @@ Servo Rwheel;
 Servo Lwheel;
 Servo CamTilt;
 
+Skuttlemove::Skuttlemove() {}
+
 void Skuttlemove::setup(){
   Rwheel.attach(RWPIN);
   Lwheel.attach(LWPIN);
@@ -42,6 +44,30 @@ void Skuttlemove::setup(){
   Rwheel.detach();
   Lwheel.detach();
   CamTilt.detach();  
+
+  // Create the move task on Core 0
+  xTaskCreatePinnedToCore(
+      moveTask,
+      "MoveTask",
+      2048,
+      this,
+      1,              //priority
+      NULL,
+      0               //core
+  );
+  Serial.println("Move Task Set on Core 0");
+}
+
+void Skuttlemove::moveTask(void *pvParameters) {
+    Skuttlemove *moveInstance = static_cast<Skuttlemove*>(pvParameters);
+    for (;;) {
+        moveInstance->executeMovement();
+        vTaskDelay(pdMS_TO_TICKS(100)); // 0.1 second delay
+    }
+}
+
+void Skuttlemove::executeMovement() {
+    action(COMMAND, MOVE);
 }
 
 // Function implementation of the action function

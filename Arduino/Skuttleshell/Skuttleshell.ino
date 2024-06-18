@@ -67,12 +67,7 @@ void setup()
 
 void loop()
 {
-  if(millis()-mtime >= mintraval){
-    //sends last known command
-    actionitem.action(COMMAND, MOVE);
-    mtime=millis();
-  }
- 
+  //nothing to see here.
 }
 
 // Function to handle WebSocketCommand events

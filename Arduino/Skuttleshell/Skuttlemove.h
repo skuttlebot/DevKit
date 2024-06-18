@@ -1,15 +1,14 @@
-#ifndef SKUTTLEMOVE_H
-#define SKUTTLEMOVE_H
-
+// Skuttlemove.h
+#pragma once
+#include <Arduino.h>
 
 class Skuttlemove {
 public:
-  void setup();
-  void action(bool COMMAND[], float MOVE[]);
+    Skuttlemove();
+    void setup();
+    void action(bool COMMAND[], float MOVE[]);
 
+private:
+    static void moveTask(void *pvParameters);
+    void executeMovement();
 };
-
-extern bool COMMAND[17];
-extern float MOVE[4];
-
-#endif
