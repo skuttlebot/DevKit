@@ -6,11 +6,7 @@
 class Skuttlesound {
 private:
     static void play(void *instance); // Make play a static function to be compatible with FreeRTOS task creation
-
-    //uint8_t* audioBuffer = nullptr; // Pointer for dynamic audio buffer allocation
-    //size_t writeIndex = 0;          // Where to write incoming data
-    //size_t readIndex = 0;           // Where to read data to play
-    //volatile size_t availableAudio = 0;
+    SemaphoreHandle_t bufferMutex;
 
 public:
   Skuttlesound();
@@ -18,7 +14,12 @@ public:
   //void play(); // Play sound via I2S
   void addToBuffer(const uint8_t* data, size_t len); 
   void processAudio();
+  void handleEndOfAudio();
   static void audioTask(void *pvParameters); // Task function declaration
+  static void audioReport(void *pvParameters);
+  static void bufferMonitorTask(void *pvParameters); 
+  TaskHandle_t audioTaskHandle;
+
 };
 
 #endif

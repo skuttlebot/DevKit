@@ -38,11 +38,11 @@ bool COMMAND[17];
 bool CAMON = false;
 bool REDSTATE = false;
 bool CPRESSED = false;
+bool ENDAUDIO = false;
 float MOVE[4];
-int cameraClientId=0;
-int SoundClientId=0;
-
-
+int cameraClientId = 0;
+int SoundClientId = 0;
+int packetcount=0;
 
 void setup()
 {
@@ -85,7 +85,7 @@ void onWebSocketEventCommand(AsyncWebSocket *server, AsyncWebSocketClient *clien
       break;
     case WS_EVT_DISCONNECT:
       Serial.println("WebSocket Command client disconnected");
-      clientCommand=NULL;
+      clientCommand = NULL;
       wsCommand.cleanupClients();
       //full stop routine!!!
       break;
@@ -165,13 +165,14 @@ void onWebSocketEventCommand(AsyncWebSocket *server, AsyncWebSocketClient *clien
 
 // Function to handle WebSocketCamera events
 void onWebSocketEventCamera(AsyncWebSocket *server, AsyncWebSocketClient *client,
-      AwsEventType type, void *arg, uint8_t *data, size_t len)
-{
+      AwsEventType type, void *arg, uint8_t *data, size_t len){
    switch (type)
    {
       case WS_EVT_CONNECT:
          Serial.println("WebSocket Camera client connected");
-         if(!CAMINIT){skuttlecamInstance.on();}
+         if(!CAMINIT){
+            skuttlecamInstance.on();
+         }
          cameraClientId = client->id();
   
          Serial.print("cameraClientID = ");
@@ -194,8 +195,7 @@ void onWebSocketEventCamera(AsyncWebSocket *server, AsyncWebSocketClient *client
 
 // Function to handle WebSocketSound events
 void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
-      AwsEventType type, void *arg, uint8_t *data, size_t len)
-{
+      AwsEventType type, void *arg, uint8_t *data, size_t len){       
    switch (type)
    {
       case WS_EVT_CONNECT:
@@ -208,14 +208,20 @@ void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
       case WS_EVT_DISCONNECT:
          Serial.println("WebSocket Sound client disconnected");
          break;
-      case WS_EVT_DATA:{
-        //Serial.println("time: "+String(millis())+", datalength: "+len);
+      case WS_EVT_DATA:
+        if (strcmp((char*)data, "EOA") == 0) {
+          ENDAUDIO=true;
+          //skuttlesound.handleEndOfAudio();
+          break;
+        }
+        if (len % 2 != 0) {
+          Serial.println("Warning: Data length not aligned for 16-bit samples");
+          return;
+        }
+        Serial.println (len);
         skuttlesound.addToBuffer(data, len);
-        //String command =("~"); //String("heartbeat,") + MODULE + "," + ID;
-        //wsCommand.textAll(command);
-        //Serial.print(command);
-         break;
-      }
+
+        break;
       default:
         break;
       // Add other cases if needed

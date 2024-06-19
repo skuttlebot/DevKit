@@ -2,14 +2,14 @@
 #include "Skuttlesound.h"
 #include "driver/i2s.h"
 #include "esp_heap_caps.h"
-//#include "BluetoothA2DPSource.h" //bt add
+
 
 #define I2S_PORT I2S_NUM_1
 #define BITS_PER_SAMPLE I2S_BITS_PER_SAMPLE_16BIT
 
 #define SAMPLE_RATE 16000
-#define I2S_BUFFER_SIZE   1024
-#define CIRCULAR_BUFFER_SIZE (I2S_BUFFER_SIZE * 4) 
+#define I2S_BUFFER_SIZE   1024 //was 1024
+#define CIRCULAR_BUFFER_SIZE (I2S_BUFFER_SIZE * 8) 
 
 
 
@@ -17,22 +17,29 @@ uint8_t* circularBuffer = nullptr;
 size_t writeIndex = 0;  // Where to write incoming data
 size_t readIndex = 0;   // Where to read data to play
 size_t availableAudio = 0;  // Amount of audio data available in the buffer
-
+const int audioStackSize=16384;
+bool paused = false;
+extern bool ENDAUDIO;
 
 
 Skuttlesound::Skuttlesound() {}
 
 void Skuttlesound::begin() {
-      if (psramFound()) {
+     /* if (psramFound()) {
         circularBuffer = (uint8_t*) heap_caps_malloc(CIRCULAR_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
         if (!circularBuffer) {
             Serial.println("Failed to allocate audio buffer in PSRAM");
             return;
         }
         Serial.println("Audio buffer allocated in PSRAM");
-    } else {
-        Serial.println("PSRAM not found, audio buffering may be limited.");
-    }
+    } else {*/
+        circularBuffer = (uint8_t*) malloc(CIRCULAR_BUFFER_SIZE);
+          if (!circularBuffer) {
+          Serial.println("Failed to allocate audio buffer in local RAM");
+          return;
+        }
+    Serial.println("Audio buffer allocated in local RAM");
+    //}
   // Setup I2S config for using with MAX98357A
   i2s_config_t i2s_config = {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
@@ -65,16 +72,29 @@ void Skuttlesound::begin() {
       Serial.printf("Failed to set I2S pins: %d\n", err);
       return;
   }
+
   Serial.println("Audio Systems Online"); 
+  bufferMutex = xSemaphoreCreateMutex();
+
   xTaskCreatePinnedToCore(
     audioTask, // Task function
     "AudioTask",         // Name of the task
-    4096,                // Stack size in words
+    audioStackSize,      // Stack size in words
     this,                // Pass the instance of Skuttlesound for context
-    3,                   // Priority of the task
-    NULL,                // Task handle
-    0);                  // Core ID (0 or 1, tskNO_AFFINITY for no affinity)
-  Serial.println("Audio Core Set");   
+    10,                   // Priority of the task
+    &audioTaskHandle,                // Task handle
+    1);                  // Core ID (0 or 1, tskNO_AFFINITY for no affinity)
+  Serial.println("Audio Core Set"); 
+
+  xTaskCreatePinnedToCore(
+      audioReport,          // Task function
+      "Audio Stack Report", // Task name
+      2048,                 // Stack size
+      this,                 // Parameters (passing the class instance)
+      1,                    // Priority
+      NULL,                 // Task handle not stored
+      0                     // Core
+  );
 }
 
 // Implementation of the static task function
@@ -85,105 +105,94 @@ void Skuttlesound::audioTask(void *pvParameters) {
       // Since play is now a static function, pass the instance to it
       //play(soundInstance);
       soundInstance->processAudio();
-      vTaskDelay(pdMS_TO_TICKS(10)); // Adjust the delay as needed for your application 
+      vTaskDelay(pdMS_TO_TICKS(1)); // Adjust the delay as needed for your application 
   }
 }
 
-// Adjusted play method to be static and accept a Skuttlesound instance pointer
-/*void Skuttlesound::play(void *instance) {
-    auto* self = static_cast<Skuttlesound*>(instance); // Cast back to Skuttlesound instance
+void Skuttlesound::processAudio() { // Sends to the i2s for playback
+    if (xSemaphoreTake(bufferMutex, portMAX_DELAY)) {
+        if (availableAudio >= I2S_BUFFER_SIZE || (ENDAUDIO && availableAudio > 0)) {
+            size_t bytesToWrite = min(static_cast<size_t>(I2S_BUFFER_SIZE), availableAudio);
+            size_t endIndex = (readIndex + bytesToWrite) % CIRCULAR_BUFFER_SIZE;
+            size_t bytes_written = 0;
+            if (endIndex < readIndex) { // Wrap around case
+                size_t firstChunkSize = CIRCULAR_BUFFER_SIZE - readIndex;
+                size_t secondChunkSize = endIndex;
 
-    // Ensure there's enough data to play
-    if (self->availableAudio >= I2S_BUFFER_SIZE) {
-        Serial.println(".");
-        uint8_t tempBuffer[I2S_BUFFER_SIZE] = {0}; // Temporary buffer for data to play
+                // Write the first chunk
+                esp_err_t result = i2s_write(I2S_PORT, &circularBuffer[readIndex], firstChunkSize, &bytes_written, portMAX_DELAY);
+                if (result != ESP_OK || bytes_written != firstChunkSize) {
+                    Serial.printf("Error in i2s_write: %d, Bytes written: %d\n", result, bytes_written);
+                }
 
-        // Fill tempBuffer with available audio data
-        for (size_t i = 0; i < I2S_BUFFER_SIZE; ++i) {
-            tempBuffer[i] = self->audioBuffer[self->readIndex];
-            self->availableAudio--;
-            self->readIndex = (self->readIndex + 1) %CIRCULAR_BUFFER_SIZE;
+                // Write the second chunk
+                result = i2s_write(I2S_PORT, &circularBuffer[0], secondChunkSize, &bytes_written, portMAX_DELAY);
+                if (result != ESP_OK || bytes_written != secondChunkSize) {
+                    Serial.printf("Error in i2s_write: %d, Bytes written: %d\n", result, bytes_written);
+                }
+            } else {
+                // Normal case
+                esp_err_t result = i2s_write(I2S_PORT, &circularBuffer[readIndex], bytesToWrite, &bytes_written, portMAX_DELAY);
+                if (result != ESP_OK || bytes_written != bytesToWrite) {
+                    Serial.printf("Error in i2s_write: %d, Bytes written: %d\n", result, bytes_written);
+                }
+            }
+
+            readIndex = endIndex;
+            availableAudio -= bytesToWrite;
+
+            // Zero out the remaining buffer if it's the end of the audio
+            if (ENDAUDIO && availableAudio == 0) {
+                ENDAUDIO = false;
+                // additional cleanup
+            }
         }
-
-        // Play the chunk
-        size_t bytes_written = 0;
-        esp_err_t result = i2s_write(I2S_PORT, tempBuffer, I2S_BUFFER_SIZE, &bytes_written, portMAX_DELAY);
-
-        // Check the result and bytes_written for diagnostics
-        if (result != ESP_OK) {
-            Serial.printf("i2s_write failed: %d\n", result);
-        }
-        if (bytes_written != I2S_BUFFER_SIZE) {
-            Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, I2S_BUFFER_SIZE);
-        }
-
-    }
-}*/
-
-void Skuttlesound::processAudio() {  //sends to the i2s for playback
-    if (availableAudio >= I2S_BUFFER_SIZE) {
-        uint8_t tempBuffer[I2S_BUFFER_SIZE] = {0};
-
-        for (size_t i = 0; i < I2S_BUFFER_SIZE; ++i) {
-            tempBuffer[i] = circularBuffer[readIndex];
-            availableAudio--;
-            readIndex = (readIndex + 1) %CIRCULAR_BUFFER_SIZE;
-        }
-
-        size_t bytes_written = 0;
-        esp_err_t result = i2s_write(I2S_PORT, tempBuffer, I2S_BUFFER_SIZE, &bytes_written, portMAX_DELAY);
-
-        if (result != ESP_OK) {
-            Serial.printf("i2s_write failed: %d\n", result);
-        }
-        if (bytes_written != I2S_BUFFER_SIZE) {
-            Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, I2S_BUFFER_SIZE);
-        }
+        xSemaphoreGive(bufferMutex);
     }
 }
 
-void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {//writes the data to the circular buffer
-  //Serial.print ("Adding to buffer: ");
-  for (size_t i = 0; i < len; ++i) {
-    if (availableAudio <CIRCULAR_BUFFER_SIZE) {
+
+void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
+  if (xSemaphoreTake(bufferMutex, portMAX_DELAY)) { // Take the mutex
+    for (size_t i = 0; i < len; i += 2) {
+      if (availableAudio < CIRCULAR_BUFFER_SIZE - 1) { // Ensure there is enough space for 16-bit samples
         circularBuffer[writeIndex] = data[i];
-        writeIndex = (writeIndex + 1) %CIRCULAR_BUFFER_SIZE;
-        availableAudio++;
+        circularBuffer[(writeIndex + 1) % CIRCULAR_BUFFER_SIZE] = data[i + 1];
+        writeIndex = (writeIndex + 2) % CIRCULAR_BUFFER_SIZE;
+        availableAudio += 2;
+      } else {
+        Serial.println("Warning: Circular buffer overflow");  //abort!
+        break;
+      }
+    }
+    wsSound.textAll("READY");
+    Serial.println("Ready"); // Notify the client that the ESP32 is ready for the next packet
+    float bufferUsage = (float)availableAudio / CIRCULAR_BUFFER_SIZE;
+    if(paused&&(bufferUsage<=.5)){
+        paused=false;
+        wsSound.textAll("RESUME");
+        Serial.println("Buffer has space, sent RESUME command to client.");   
+    }else if(!paused&&(bufferUsage>=.8)){
+        paused=true;            
+        wsSound.textAll("PAUSE");
+        Serial.println("Buffer nearing capacity.");
+    }
+    xSemaphoreGive(bufferMutex); // Give the mutex
+            // Send "READY" signal if not paused
+    if (!paused) {
+
     }
   }
-    //delay(1);
-    // Only proceed if there's enough data to play
-  //if (availableAudio >= I2S_BUFFER_SIZE) {play();} function move to task
 }
 
-
-/*void Skuttlesound::play() {
-//Serial.println("Attempting to play buffer");
-
-  Serial.println(".");
-  uint8_t tempBuffer[I2S_BUFFER_SIZE] = {0}; // Temporary buffer for data to play
-  
-  // Fill tempBuffer with available audio data
-  for (size_t i = 0; i < I2S_BUFFER_SIZE; ++i) {
-    tempBuffer[i] = audioBuffer[readIndex];
-    availableAudio--;
-    readIndex = (readIndex + 1) %CIRCULAR_BUFFER_SIZE;
-  }
-  // Play the chunk
-  size_t bytes_written = 0;
-  esp_err_t result = i2s_write(I2S_PORT, tempBuffer, I2S_BUFFER_SIZE, &bytes_written, portMAX_DELAY);
-
-  // Check the result and bytes_written for diagnostics
-  if (result != ESP_OK) {
-      Serial.printf("i2s_write failed: %d\n", result);
-  }
-  if (bytes_written != I2S_BUFFER_SIZE) {
-    Serial.printf("i2s_write incomplete: %d/%d bytes\n", bytes_written, I2S_BUFFER_SIZE);
-  }
-} /*else {
-  //Serial.println("Not enough data to play");
-  // Optional: Handle underflow, e.g., by waiting or inserting silence
-}*/
-
-
-
+void Skuttlesound::audioReport(void *pvParameters) {
+    Skuttlesound* instance = static_cast<Skuttlesound*>(pvParameters);
+    while (true) {
+        UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(instance->audioTaskHandle);
+        float usedStackPercentage = 100.0 - ((float)stackHighWaterMark / audioStackSize) * 100;
+        String command = "Audio Stack(%): " + String(usedStackPercentage, 2);
+        Serial.println(command);
+        wsCommand.textAll(command);
+        vTaskDelay(pdMS_TO_TICKS(3000));
+    }
+}

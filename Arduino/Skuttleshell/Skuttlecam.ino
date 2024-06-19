@@ -8,12 +8,13 @@
 extern AsyncWebSocket wsCamera;
 extern AsyncWebSocket wsCommand;
 bool CAMINIT=false;
+const int camStackSize=4096;
 
 Skuttlecam::Skuttlecam() {
     fb = nullptr;            // Initialize fb in the constructor
 }
 
-void camTask(void *pvParameters) {
+void Skuttlecam::camTask(void *pvParameters) {
   Skuttlecam *camera = static_cast<Skuttlecam *>(pvParameters);  // Get the Skuttlecam instance
   while(true){
     if (cameraClientId == 0 || !CAMINIT){//punt 
@@ -104,19 +105,41 @@ void Skuttlecam::on() {
    xTaskCreatePinnedToCore(
     camTask,          //task function
     "CameraTask",     //task name
-    4096,             //stack size
+    camStackSize,             //stack size
     this,             //params
     2,                //priority
-    NULL,             //task handle 
-    1                 //core (0 or 1)
+    &camTaskHandle,             //task handle 
+    0                 //core (0 or 1)
   );
+
+  xTaskCreatePinnedToCore(
+    camReport,          //task function
+    "Camera Stack Report",     //task name
+    2048,             //stack size
+    this,             //params
+    1,                //priority
+    NULL,             //task handle 
+    0                 //core (0 or 1)
+  );
+}
+
+void Skuttlecam::camReport(void*pvParameters){
+  Skuttlecam* cam = static_cast<Skuttlecam*>(pvParameters);  // Correctly cast the parameter to Skuttlecam instance
+  while(true){
+    UBaseType_t camStackHighWaterMark = uxTaskGetStackHighWaterMark(cam->camTaskHandle);
+    float usedCamStackPercentage = 100.0 - ((float)(camStackHighWaterMark) / camStackSize) * 100;
+    // Create the command string
+    String command = " Cam Stack(%): " + String(usedCamStackPercentage, 2);
+    Serial.println(command);
+    wsCommand.textAll(command);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+  }
 }
 
 void Skuttlecam::off() {
   String msg ="I've turned the camera off!";
   Serial.println(msg);
   wsCommand.textAll(msg);
-  esp_camera_fb_return(fb);
   if (fb != nullptr) {
     esp_camera_fb_return(fb);
     fb = nullptr;       // Set fb to nullptr after returning the frame buffer

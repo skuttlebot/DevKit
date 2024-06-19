@@ -171,6 +171,7 @@ void flasherTask(void*parameter){
         }  
       }  
     }
+    vTaskDelay(pdMS_TO_TICKS(100));
   }  
 }
 

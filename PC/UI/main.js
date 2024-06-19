@@ -7,7 +7,11 @@ const ID = 'ROSHIE';
 const SN = '001';
 const DroneName = 'ANY';
 const DroneSN = 'ANY';
-const reconnectInterval = 5000; // 5 seconds (adjust this as needed)
+const reconnectInterval = 5000;
+const MAX_PACKET_SIZE = 1024 ;
+let toneBuffer;
+let offset =0;
+
 let reconnectTimeout;
 let wsCamera; // WebSocket instance for camera
 let wsCommand; // WebSocket instance for Command
@@ -24,6 +28,8 @@ let primaryServerCheckInterval;
 let mainWindow;
 let cameraWindowCreated  = false;
 let isConnectedCommand = false;
+let isSoundPaused = false;
+let isReadyForNextPacket=true;
 
 
 function connectCommand() {
@@ -194,8 +200,19 @@ function connectsound(){
         });
 
         // Listen for messages from the camera server
-        wsSound.on('message', (data) => {
-            // mic data, work on that later. send to a s2txt or the like 
+        wsSound.on('message', (message) => {
+            const messageString = message.toString();
+            if (messageString === "PAUSE") {
+                isSoundPaused = true;
+                console.log("Audio streaming paused by server.");
+            } else if (messageString === "RESUME") {
+                isSoundPaused = false;
+                console.log("Audio streaming resumed by server.");
+            } else if (messageString === "READY") {
+                isReadyForNextPacket = true;
+            } else {
+            }
+            if(isReadyForNextPacket&&!isSoundPaused){sendNextPacket();} 
         });
 }
 
@@ -285,7 +302,7 @@ app.on('window-all-closed', () => {
 });
 
 // Function to generate a simple tone - place this in main.js
-function generateToneData(frequency = 440, duration = 1, sampleRate = 44100) {
+function generateToneData(frequency = 440, duration = 1, sampleRate = 16000) {
     const samples = duration * sampleRate;
     const toneData = new Float32Array(samples);
     for (let i = 0; i < samples; i++) {
@@ -298,7 +315,7 @@ function generateToneData(frequency = 440, duration = 1, sampleRate = 44100) {
 function float32ToInt16Buffer(float32Array) {
     const int16Array = new Int16Array(float32Array.length);
     for (let i = 0; i < float32Array.length; i++) {
-        const intVal = float32Array[i] * 0x7FFF; // Convert to 16 bit integer
+        const intVal = Math.max(-1, Math.min(1, float32Array[i])) * 0x7FFF; // Clamp values to -1 to 1
         int16Array[i] = intVal;
     }
     return Buffer.from(int16Array.buffer);
@@ -306,12 +323,28 @@ function float32ToInt16Buffer(float32Array) {
 
 // Example usage: Sending a generated tone over WebSocket
 function sendToneOverWebSocket() {
+    offset=0;
     const toneData = generateToneData(); // Default 440Hz for 1 second
-    const toneBuffer = float32ToInt16Buffer(toneData);
+    toneBuffer = float32ToInt16Buffer(toneData);
 
     if (wsSound && wsSound.readyState === WebSocket.OPEN) {
-        wsSound.send(toneBuffer); // Send the audio data
-        console.log('audio data sent');
-        console.log(`Buffer length: ${toneBuffer.length}`);
+        sendNextPacket();
+    } else {
+        console.log('Audio data not sent, streaming is paused');
+    }
+    
+}
+function sendNextPacket() {
+
+    if (isSoundPaused || !isReadyForNextPacket) return;
+    if (offset < toneBuffer.length) {
+        const end = Math.min(offset + 1024, toneBuffer.length); // Ensure packets are 1024 bytes
+        const packet = toneBuffer.slice(offset, end);
+        wsSound.send(packet); // Send the audio data in packets
+        offset += 1024;
+        isReadyForNextPacket = false; // Wait for the next "READY" signal
+        console.log(`Audio data packet sent, size: ${packet.length}`);
+    } else {
+        wsSound.send("EOA"); // Signal end of audio data
     }
 }
