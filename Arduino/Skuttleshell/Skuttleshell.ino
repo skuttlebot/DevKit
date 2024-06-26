@@ -62,8 +62,8 @@ void setup()
   Signalchk.begin();
   skuttlecamInstance.on();
   skuttlesound.begin();
-  //audioSync = skuttlesound.getSync();
-}
+  actionitem.setup();
+
 
 void loop()
 {
