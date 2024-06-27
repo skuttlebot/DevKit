@@ -29,13 +29,30 @@ AsyncWebSocket wsCamera("/Camera");
 AsyncWebSocket wsSound("/Sound");
 AsyncWebSocketClient *clientCommand = NULL; // To track the client connection
 
+// Forward declarations
+void onWebSocketEventCommand(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
+void onWebSocketEventCamera(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
+void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
+
+void SetupWSServer() {
+    server.addHandler(&wsCommand);
+    wsCommand.onEvent(onWebSocketEventCommand);
+    server.addHandler(&wsCamera);
+    wsCamera.onEvent(onWebSocketEventCamera);
+    server.addHandler(&wsSound);
+    wsSound.onEvent(onWebSocketEventSound);
+
+    server.begin();
+    Serial.println("WebSocket Server Started");
+}
+
 //long ptime = millis(); //pulse timer
 long mtime = millis();//motor timer
 const int mintraval = 100;
 long rssi;
 
 bool COMMAND[17];
-bool CAMON = false;
+bool CAMON = false;S
 bool REDSTATE = false;
 bool CPRESSED = false;
 bool ENDAUDIO = false;
@@ -63,7 +80,7 @@ void setup()
   skuttlecamInstance.on();
   skuttlesound.begin();
   actionitem.setup();
-
+}
 
 void loop()
 {
@@ -228,7 +245,7 @@ void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
    }
 }
 
-void SetupWSServer() {
+/*void SetupWSServer() {
     server.addHandler(&wsCommand);
     wsCommand.onEvent(onWebSocketEventCommand);
     server.addHandler(&wsCamera);
@@ -238,7 +255,7 @@ void SetupWSServer() {
     Serial.println("WebSocket Handlers Set");
     server.begin();
     Serial.println("WebSocket Server Started");
-}
+}*/
 
 void Broadcast(const char *message) {
     Serial.println(message);
