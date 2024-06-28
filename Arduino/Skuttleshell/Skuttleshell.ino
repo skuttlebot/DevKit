@@ -52,7 +52,7 @@ const int mintraval = 100;
 long rssi;
 
 bool COMMAND[17];
-bool CAMON = false;S
+bool CAMON = false;
 bool REDSTATE = false;
 bool CPRESSED = false;
 bool ENDAUDIO = false;
