@@ -17,6 +17,8 @@ private:
     void _connectToWiFi(); // Private method to handle WiFi connection logic
     void _initWiFiManager();// Private method to initialize WiFiManager
     void _setupOTA();
+    char autossid[32];
+    char autopass[64];
 };
      
 

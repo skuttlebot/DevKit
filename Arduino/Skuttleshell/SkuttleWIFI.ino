@@ -1,7 +1,7 @@
 // SkuttleWIFI.ino
 #include "SkuttleWIFI.h"
 #include <ArduinoOTA.h>
-//#include <ESPmDNS.h>
+#include <Preferences.h>
 #include "config.h" // Include the configuration header
 
 SkuttleWIFI::SkuttleWIFI() : APserver(80) {}
@@ -9,6 +9,31 @@ long ptime = millis();
 float maxUsedHeapPercentage = 0;
 float maxUsedAudioStack = 0;
 float maxUsedCamStack = 0;
+
+// Global preferences object for NVS
+Preferences preferences;
+
+void saveCredentials(const char* ssid, const char* pass) {
+    preferences.begin("wifi", false);
+    preferences.putString("autossid", ssid);
+    preferences.putString("autopass", pass);
+    preferences.end();
+}
+
+bool getCredentials(char* ssid, char* pass) {
+    preferences.begin("wifi", true);
+    String storedSSID = preferences.getString("autossid", "");
+    String storedPass = preferences.getString("autopass", "");
+    preferences.end();
+
+    if (storedSSID.length() > 0 && storedPass.length() > 0) {
+        strcpy(ssid, storedSSID.c_str());
+        strcpy(pass, storedPass.c_str());
+        return true;
+    }
+    return false;
+}
+
 void SkuttleWIFI::begin() {
     Serial.println("Initializing WiFi connection...");
     _connectToWiFi();
@@ -21,7 +46,7 @@ void SkuttleWIFI::_connectToWiFi() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     unsigned long startAttemptTime = millis();
     // Attempt to connect for up to 10 seconds
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) { 
         digitalWrite(REDLIGHT, !digitalRead(REDLIGHT));
         delay(500);
         Serial.print(".");
@@ -31,12 +56,47 @@ void SkuttleWIFI::_connectToWiFi() {
         Serial.println("\nWiFi connected successfully");
         Serial.print("IP Address: ");
         Serial.println(WiFi.localIP());
+        return;
 
-    } else {
-        digitalWrite(REDLIGHT, LOW);
-        Serial.println("\nFailed to connect with predefined credentials. Launching WiFiManager...");
-        _initWiFiManager();
+    } 
+    Serial.println("Primary credentials failed");
+
+    // Attempt to connect using stored credentials if predefined credentials fail
+
+    if (getCredentials(autossid, autopass)) {
+        Serial.println("\nStored credentials found:");
+        WiFi.disconnect(true);
+        delay(500);
+        WiFi.begin(autossid, autopass);
+        startAttemptTime = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 3000) {
+          digitalWrite(REDLIGHT, !digitalRead(REDLIGHT));
+          delay(500);
+          Serial.print(".");
+        }
+        Serial.println("\nTrying again...");
+        WiFi.disconnect(true); // Ensure the WiFi driver is reset
+        delay(500); // Ensure the WiFi state is reset
+        WiFi.begin(autossid, autopass);
+        startAttemptTime = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 7000) {
+          digitalWrite(REDLIGHT, !digitalRead(REDLIGHT));
+          delay(500);
+          Serial.print(".");
+        }
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.println("\nWiFi connected successfully with stored credentials");
+          Serial.print("IP Address: ");
+          Serial.println(WiFi.localIP());
+          return;
+        }
+    }else{
+      Serial.println("No credentials found");
     }
+    digitalWrite(REDLIGHT, LOW);
+    Serial.println("\nFailed to connect with predefined credentials. Launching WiFiManager...");
+    _initWiFiManager();
+    
 }
 
 void SkuttleWIFI::_initWiFiManager() {
@@ -44,7 +104,7 @@ void SkuttleWIFI::_initWiFiManager() {
     
     ESPAsync_WiFiManager wifiManager(&APserver, NULL);
     wifiManager.setConfigPortalTimeout(300); //time in seconds
-
+    //may want to add a feature to extend the timeout if intentionally in AP mode
     if (!wifiManager.autoConnect("ESP32AP", "password")) {
       Serial.println("Failed to connect and hit timeout. Rebooting...");
       delay(3000); // 3 seconds delay before reboot
@@ -56,6 +116,8 @@ void SkuttleWIFI::_initWiFiManager() {
     Serial.println(WiFi.localIP());
     WiFi.mode(WIFI_STA);
     Serial.println("AP Server closed.");
+        // Save the new credentials
+    saveCredentials(WiFi.SSID().c_str(), WiFi.psk().c_str());
 }
 
 void SkuttleWIFI::setupMDNS(const char* hostname) {

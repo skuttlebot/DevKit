@@ -40,7 +40,7 @@ void Skuttlecam::camTask(void *pvParameters) {
         esp_camera_fb_return(fb);
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(100)); // Adjust the delay as needed
+    vTaskDelay(pdMS_TO_TICKS(20)); // Adjust the delay as needed
   }
 }
 
