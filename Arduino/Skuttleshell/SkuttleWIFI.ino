@@ -60,6 +60,7 @@ void SkuttleWIFI::_connectToWiFi() {
 
     } 
     Serial.println("Primary credentials failed");
+    delay(500);
 
     // Attempt to connect using stored credentials if predefined credentials fail
 
@@ -95,6 +96,8 @@ void SkuttleWIFI::_connectToWiFi() {
     }
     digitalWrite(REDLIGHT, LOW);
     Serial.println("\nFailed to connect with predefined credentials. Launching WiFiManager...");
+    WiFi.disconnect(true); // Ensure the WiFi driver is reset
+    delay(500); // Ensure the WiFi state is reset
     _initWiFiManager();
     
 }
@@ -114,7 +117,7 @@ void SkuttleWIFI::_initWiFiManager() {
     Serial.println("Connected to WiFi via WiFiManager");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
-    WiFi.mode(WIFI_STA);
+    
     Serial.println("AP Server closed.");
         // Save the new credentials
     saveCredentials(WiFi.SSID().c_str(), WiFi.psk().c_str());
