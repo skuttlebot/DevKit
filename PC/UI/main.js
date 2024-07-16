@@ -2,6 +2,7 @@
 console.log('main program running');
 const path = require('path');
 const WebSocket = require('ws');
+const AudioRecorder = require('node-audiorecorder');
 const { app, BrowserWindow, ipcMain } = require('electron');
 const ID = 'ROSHIE';
 const SN = '001';
@@ -9,8 +10,9 @@ const DroneName = 'ANY';
 const DroneSN = 'ANY';
 const reconnectInterval = 5000;
 const MAX_PACKET_SIZE = 1024 ;
-let toneBuffer;
+let audioBuffer;
 let offset =0;
+isStreaming = false;
 
 let reconnectTimeout;
 let wsCamera; // WebSocket instance for camera
@@ -20,6 +22,19 @@ let isLonely = true; // flag indicating a recent connection used on command inst
 let onerror = false;
 const PRIMARY_PORT = 8080; // Primary robot server port
 const BACKUP_PORT = 8081; // Backup robot server port
+let audioData = null; // Declare audioData globally
+
+
+
+const audioOptions = {
+    program: process.platform === 'win32' ? 'sox' : 'arecord',
+    device: null,
+    bits: 16,
+    channels: 2,
+    rate: 44100,
+    type: 'wav',
+};
+const audioRecorder = new AudioRecorder(audioOptions);
 
 let currentPort = PRIMARY_PORT; // Start with primary port
 let primaryServerCheckInterval;
@@ -199,7 +214,7 @@ function connectsound(){
             console.error('WebSocket Audio error during connection:', error);
         });
 
-        // Listen for messages from the camera server
+        // Listen for messages from the audio server
         wsSound.on('message', (message) => {
             const messageString = message.toString();
             if (messageString === "PAUSE") {
@@ -258,6 +273,15 @@ ipcMain.on('Ready', () => {
 ipcMain.on('playTone', () => {
     sendToneOverWebSocket();
 });
+
+ipcMain.on('streamToggle', () => {
+    if (isStreaming) {
+        stopStreaming();
+
+    } else {
+        startStreaming();
+    }
+})
 
 function createWindow() {
 	mainWindow = new BrowserWindow({
@@ -325,21 +349,20 @@ function float32ToInt16Buffer(float32Array) {
 function sendToneOverWebSocket() {
     offset=0;
     const toneData = generateToneData(); // Default 440Hz for 1 second
-    toneBuffer = float32ToInt16Buffer(toneData);
+    audioData = float32ToInt16Buffer(toneData);
 
     if (wsSound && wsSound.readyState === WebSocket.OPEN) {
         sendNextPacket();
     } else {
-        console.log('Audio data not sent, streaming is paused');
+        console.log('Audio data not sent, audioserver not connected.');
     }
-    
 }
 function sendNextPacket() {
 
     if (isSoundPaused || !isReadyForNextPacket) return;
-    if (offset < toneBuffer.length) {
-        const end = Math.min(offset + 1024, toneBuffer.length); // Ensure packets are 1024 bytes
-        const packet = toneBuffer.slice(offset, end);
+    if (offset < audioData.length) {
+        const end = Math.min(offset + 1024, audioData.length); // Ensure packets are 1024 bytes
+        const packet = audioData.slice(offset, end);
         wsSound.send(packet); // Send the audio data in packets
         offset += 1024;
         isReadyForNextPacket = false; // Wait for the next "READY" signal
@@ -347,4 +370,24 @@ function sendNextPacket() {
     } else {
         wsSound.send("EOA"); // Signal end of audio data
     }
+}
+
+// Start streaming audio
+function startStreaming() {
+    audioRecorder.start().stream().on('data', (chunk) => {
+        audioBuffer = Buffer.concat([audioBuffer, chunk]); // Append new data to the buffer
+        if (wsSound.readyState === WebSocket.OPEN && isReadyForNextPacket) {
+            sendNextPacket(); // Send initial chunk if ready
+        }
+    });
+
+    isStreaming = true;
+    console.log('Audio streaming started.');
+}
+
+// Stop streaming audio
+function stopStreaming() {
+    audioRecorder.stop();
+    isStreaming = false;
+    console.log('Audio streaming stopped.');
 }

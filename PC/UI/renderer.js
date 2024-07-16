@@ -54,6 +54,12 @@ window.addEventListener('DOMContentLoaded', () => {
 			// Trigger tone playback by sending a message to the main process
 			window.electronAPI.playTone();
 		  });
+		  document.getElementById('streamToggleButton').addEventListener('click', () => {
+			// Trigger stream toggle by sending a message to the main process
+			window.electronAPI.streamToggle();
+			streamToggleButton.textContent = isStreaming ? 'Stop Recording' : 'Start Recording';
+
+		  });
 	});
 	electronAPI.Ready();
 });

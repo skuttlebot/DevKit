@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('Ready');
   },
   playTone: () => ipcRenderer.send('playTone'),
+  streamToggle: () => ipcRenderer.send('streamToggle'),
   serverURL: 'http://localhost:5400', 
   // Add any other properties/functions you want to expose
 });
