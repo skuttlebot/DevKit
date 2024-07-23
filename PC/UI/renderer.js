@@ -1,17 +1,14 @@
-// renderer.js  *handles UI as well as creates and recives messages with main*
 const haveEvents = "ongamepadconnected" in window;
 const controllers = {};
 CSOld = 'NULL';
 let cameraWindowCreated = false;
 let CAMwin = false;
-let b;
 const gamepStatusElement = document.getElementById('gamepStatus');
+let Streaming = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-	//const connectionStatusElement = document.getElementById('status');
 	console.log('DOMC loop started');
 	let isFirstStatusUpdate = true;
-	// Listen for messages from the main process to update the connection status
 	window.addEventListener('message', async (event) => {
 		console.log('message loop started');
 		if (event.data.type === 'status') {
@@ -26,40 +23,31 @@ window.addEventListener('DOMContentLoaded', () => {
 				connectionStatusElement.textContent = event.data.message;
 			}
 		}
-	
+
 		if (event.data.type === 'video') {
-			
-			  //console.log('Receiving video in the window');
-			  const videoPlayer = document.getElementById('cameraFeed');
-		
-			  // Assuming 'event.data.message' contains the actual video data
-			  const videoData = event.data.message;
+			//console.log('Receiving video in the window');
+			const videoPlayer = document.getElementById('cameraFeed');
+			const videoData = event.data.message;
 			if (cameraWindowCreated) {
-			  if (typeof videoData === 'string' && videoData.startsWith('http')) {
-				// If videoData is a stream URL
-				videoPlayer.src = videoData;
-			  } else if (videoData instanceof Uint8Array) {
-				// If videoData is binary data
-				const blob = new Blob([videoData], { type: 'video/mp4' }); // Adjust MIME type if necessary
-				const videoURL = URL.createObjectURL(blob);
-				videoPlayer.src = videoURL;
-			  } else {
-				console.error('Unexpected video data format');
-			  }
+				if (typeof videoData === 'string' && videoData.startsWith('http')) {
+					videoPlayer.src = videoData;
+				} else if (videoData instanceof Uint8Array) {
+					const blob = new Blob([videoData], { type: 'video/mp4' });
+					const videoURL = URL.createObjectURL(blob);
+					videoPlayer.src = videoURL;
+				} else {
+					console.error('Unexpected video data format');
+				}
 			}
 		}
-		// Initialize the UI with 'default' status
-		const connectionStatusElement = document.getElementById('status');
 		document.getElementById('playToneButton').addEventListener('click', () => {
-			// Trigger tone playback by sending a message to the main process
 			window.electronAPI.playTone();
-		  });
-		  document.getElementById('streamToggleButton').addEventListener('click', () => {
-			// Trigger stream toggle by sending a message to the main process
+		});
+		document.getElementById('streamToggleButton').addEventListener('click', () => {
 			window.electronAPI.streamToggle();
-			streamToggleButton.textContent = isStreaming ? 'Stop Recording' : 'Start Recording';
-
-		  });
+			Streaming = !Streaming;
+			document.getElementById('streamToggleButton').textContent = Streaming ? 'Stop Recording' : 'Start Recording';
+		});
 	});
 	electronAPI.Ready();
 });
@@ -74,7 +62,7 @@ function connecthandler(e) {
 	addgamepad(e.gamepad);
 }
 
-function addgamepad(gamepad) {
+function addgamepad(gamepad) {  //set up the data structure for the gamepad
 	controllers[gamepad.index] = gamepad;
 
 	const d = document.createElement("div");
@@ -83,11 +71,9 @@ function addgamepad(gamepad) {
 
 	const t = document.createElement("div");
 	t.textContent = `gamepad: ${gamepad.id}`;
-	gamepStatusElement.textContent = t;
-	d.appendChild(t);
-	console.log(d);
+	gamepStatusElement.textContent = `Connected to: ${gamepad.id}`;
 
-	b = document.createElement("ul");
+	const b = document.createElement("ul");
 	b.className = "buttons";
 	gamepad.buttons.forEach((button, i) => {
 		const e = document.createElement("li");
@@ -108,7 +94,7 @@ function addgamepad(gamepad) {
 		p.setAttribute("max", "2");
 		p.setAttribute("value", "1");
 		p.textContent = i;
-		b.appendChild(p);
+		a.appendChild(p);
 	});
 
 	d.appendChild(a);
@@ -118,9 +104,15 @@ function addgamepad(gamepad) {
 		start.style.display = "none";
 	}
 
-	document.body.appendChild(d);
+	const controllerOutput = document.getElementById("controllerOutput");
+	if (controllerOutput) {
+    	controllerOutput.innerHTML = ''; // Clear existing content
+    	controllerOutput.appendChild(d); // Append 'd' to 'controllerOutput'
+	}
+
 	requestAnimationFrame(updateStatus);
 }
+
 
 function disconnecthandler(e) {
 	removegamepad(e.gamepad);
@@ -129,7 +121,7 @@ function disconnecthandler(e) {
 function removegamepad(gamepad) {
 	const d = document.getElementById(`controller${gamepad.index}`);
 	console.log("Remove Triggered: " + d);
-	document.body.removeChild(d);
+	document.getElementById("controllerOutput").removeChild(d);
 	gamepStatusElement.textContent = "No gamepad connected";
 	delete controllers[gamepad.index];
 }
@@ -141,7 +133,7 @@ function updateStatus() {
 	const allCommands = []; // Array to store all the commands
 	Object.entries(controllers).forEach(([i, controller]) => {
 		const d = document.getElementById(`controller${i}`);
-		const buttons = b.getElementsByClassName("button");
+		const buttons = d.getElementsByClassName("button");
 
 		controller.buttons.forEach((button, i) => {
 			const b = buttons[i];
@@ -164,7 +156,7 @@ function updateStatus() {
 			allCommands.push(command);
 		});
 
-		const axes = b.getElementsByClassName("axis");
+		const axes = d.getElementsByClassName("axis");
 		controller.axes.forEach((axis, i) => {
 			const a = axes[i];
 			a.textContent = `${i}: ${axis.toFixed(4)}`;
@@ -180,7 +172,7 @@ function updateStatus() {
 	// Send the commandString to the main process or the server
 	if (CSOld != commandString) {
 		electronAPI.RendToMain({ commandString });
-		//console.log(commandString);
+		triggerTX();
 		CSOld = commandString;
 	}
 
@@ -207,27 +199,12 @@ function scangamepads() {
 }
 
 function createCameraWindow() {
-	/*const cameraWindow = document.createElement("div");
-	cameraWindow.id = "cameraWindow";
-	cameraWindow.style.position = "absolute";
-	cameraWindow.style.top = "50px";
-	cameraWindow.style.right = "10px"; // Position the camera window in the top-right corner
-	cameraWindow.style.width = "480px";
-	cameraWindow.style.height = "360px";
-	cameraWindow.style.border = "2px solid #ccc";
-	document.body.appendChild(cameraWindow);*/
-
-	// Add the video element to the camera window
 	const videoElement = document.createElement("img");
 	videoElement.id = "cameraFeed";
-	//videoElement.className = "camera-off";
-	videoElement.width = "480";
-	videoElement.height = "360";
-	//videoElement.crossOrigin = "anonymous"
-	//videoElement.src = 'http://skuttlehost.local:81/stream';
-	//videoElement.autoplay = true;
-	//videoElement.type = "video/mp4";
+	videoElement.style.width = "480px"; // Ensure it scales to the container
+	videoElement.style.height = "320px"; // Maintain aspect ratio
 	cameraWindow.appendChild(videoElement);
+	console.log('camera window created');
 }
 
 // Trigger tone generation in the main process from the renderer
@@ -235,10 +212,39 @@ function requestTonePlayback() {
     window.electronAPI.requestTonePlayback();
 }
 
-
 function updateBuffer() {
 	if (queue.length > 0 && !buffer.updating) {
 		buffer.appendBuffer(queue.shift());
 	}
 }
 
+window.addEventListener('triggerTX', () => {
+    triggerTX();
+});
+
+window.addEventListener('triggerRX', () => {
+    triggerRX();
+});
+
+window.addEventListener('updateFuelGauge', (event) => {
+    const percentage = event.detail;
+    const fuelGaugeFill = document.getElementById('fuelGaugeFill');
+    fuelGaugeFill.style.height = `${percentage}%`;
+});
+
+function triggerTX() {
+    const ledTransmit = document.getElementById('ledTransmit');
+    turnOnLED(ledTransmit);
+}
+
+function triggerRX() {
+    const ledReceive = document.getElementById('ledReceive');
+    turnOnLED(ledReceive);
+}
+
+function turnOnLED(ledElement, duration = 200) {
+    ledElement.style.backgroundColor = '#00ff00';
+    setTimeout(() => {
+        ledElement.style.backgroundColor = '#333';
+    }, duration);
+}

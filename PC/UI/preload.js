@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 
-// Listen for messages from the main process and forward them to the renderer
+// Listen for statusmessages from the main process and forward them to the renderer
 ipcRenderer.on('status', (event, message) => {
     //console.log(`${message} recieved in preload`);
     window.dispatchEvent(new MessageEvent('message', { data: { type: 'status', message } }));
@@ -28,3 +28,16 @@ ipcRenderer.on('video', (event, message) => {
   window.dispatchEvent(new MessageEvent('message', { data: { type: 'video', message } }));
 });
 
+ipcRenderer.on('triggerTX', () => {
+  //console.log(`TriggerTX recieved in preload`);
+  window.dispatchEvent(new CustomEvent('triggerTX'));
+});
+
+ipcRenderer.on('triggerRX', () => {
+  //console.log(`TriggerRX recieved in preload`);
+  window.dispatchEvent(new CustomEvent('triggerRX'));
+});
+
+ipcRenderer.on('updateFuelGauge', (event, percentage) => {
+  window.dispatchEvent(new CustomEvent('updateFuelGauge', { detail: percentage }));
+});

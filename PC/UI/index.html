@@ -8,17 +8,29 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Skuttlebot Controller</h1>
-    </header>
-    <main>
-      <div id="status" class="status">Waiting for Device</div>
-      <div id="gamepStatus" class="gamepad-status">No gamepad connected</div>
-      <div class="controls">
-        <button id="playToneButton" class="control-button">Play Tone</button>
-        <button id="streamToggleButton" class="control-button">Start Recording</button>
-        <div id="start" class="start-message">
-          <p>Press any button on your gamepad to start.</p>
+    <div class="left-column">
+      <button id="playToneButton" class="control-button">Play Tone</button>
+      <button id="streamToggleButton" class="control-button">Start Recording</button>
+    </div>
+    <div class="center-column">
+      <div class="dashboard">
+        <div id="status" class="status">Waiting for Device</div>
+        <div id="gamepStatus" class="gamepad-status">No gamepad connected</div>
+        <div class="leds">
+          <div class="led-container">
+            <div id="ledReceive" class="led"></div>
+            <span>RX</span>
+          </div>
+          <div class="led-container">
+            <div id="ledTransmit" class="led"></div>
+            <span>TX</span>
+          </div>
+          <div class="fuel-gauge">
+            <div id="fuelGaugeFill" class="fuel-gauge-fill"></div>
+          </div>
+          <div class="fuel-label">
+            <span>Audio</span>
+          </div>
         </div>
       </div>
       <div id="cameraWindow" class="camera-window">
@@ -27,7 +39,13 @@
       <div id="commandLog" class="command-log">
         <p>Command Log</p>
       </div>
-    </main>
+    </div>
+    <div class="right-column">
+      <div id="controllerOutput" class="controller-output">
+        <p>Insert controller and press any button</p>      </div>
+
+      </div>
+    </div>
   </div>
   <script src="renderer.js"></script>
 </body>

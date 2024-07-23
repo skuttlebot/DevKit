@@ -4,27 +4,22 @@ const path = require('path');
 const WebSocket = require('ws');
 const AudioRecorder = require('node-audiorecorder');
 const { app, BrowserWindow, ipcMain } = require('electron');
+const AudioCapture = require('./audioCapture');
 const ID = 'ROSHIE';
 const SN = '001';
 const DroneName = 'ANY';
 const DroneSN = 'ANY';
 const reconnectInterval = 5000;
-const MAX_PACKET_SIZE = 1024 ;
-let audioBuffer;
-let offset =0;
+const MAX_PACKET_SIZE = 1024;
+const MAX_AUDIO_BUFFER_SIZE = 2097152; // 2 MB
+
 isStreaming = false;
-
-let reconnectTimeout;
-let wsCamera; // WebSocket instance for camera
-let wsCommand; // WebSocket instance for Command
-let wsSound; //Websocket instance for audio
-let isLonely = true; // flag indicating a recent connection used on command instance
-let onerror = false;
-const PRIMARY_PORT = 8080; // Primary robot server port
-const BACKUP_PORT = 8081; // Backup robot server port
-let audioData = null; // Declare audioData globally
-
-
+let audioData = Buffer.alloc(0);
+let isSoundPaused = false;
+let isReadyForNextPacket = true;
+let bufferCheckInterval;
+let mainWindow;
+let isPlaying = false;
 
 const audioOptions = {
     program: process.platform === 'win32' ? 'sox' : 'arecord',
@@ -35,37 +30,163 @@ const audioOptions = {
     type: 'wav',
 };
 const audioRecorder = new AudioRecorder(audioOptions);
+const audioCapture = new AudioCapture();
+
+let reconnectTimeout;
+let wsCamera; // WebSocket instance for camera
+let wsCommand; // WebSocket instance for Command
+let wsSound; //Websocket instance for audio
+let isLonely = true; // flag indicating a recent connection used on command instance
+let onerror = false;
+
+const PRIMARY_PORT = 8080; // Primary robot server port
+const BACKUP_PORT = 8081; // Backup robot server port
 
 let currentPort = PRIMARY_PORT; // Start with primary port
 let primaryServerCheckInterval;
 
-
-let mainWindow;
-let cameraWindowCreated  = false;
+let cameraWindowCreated = false;
 let isConnectedCommand = false;
-let isSoundPaused = false;
-let isReadyForNextPacket=true;
 
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+            webSecurity: false, // Adjust this as needed
+            allowRunningInsecureContent: true, // Adjust this as needed
+            //autoplayPolicy: 'user-gesture-required', // Adjust this as needed
+            media: {
+                //    audioCapture: true, // Enable audio capture
+                videoCapture: true, // Enable video capture
+            },
+        }
+    });
+
+    mainWindow.loadFile('index.html');
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+}
+
+function startBufferCheck() {
+    if (!bufferCheckInterval) {
+        bufferCheckInterval = setInterval(checkBufferSize, 500); // Check buffer size every 1/2 second
+    }
+}
+
+function checkBufferSize() {
+    if (audioData.length > 0) {
+        const percentage = (audioData.length / MAX_AUDIO_BUFFER_SIZE) * 100;
+        mainWindow.webContents.send('updateFuelGauge', percentage);
+    } else {
+        clearInterval(bufferCheckInterval);
+        bufferCheckInterval = null;
+        isPlaying = false;
+    }
+}
+
+function sendNextPacket(wsSound) {
+    if (!isPlaying) {
+        startBufferCheck();
+        isPlaying = true;
+    }
+    if (isSoundPaused || !isReadyForNextPacket || (isStreaming && audioData.length < MAX_PACKET_SIZE)) {
+        setTimeout(() => sendNextPacket(wsSound), 50);
+        console.log('Waiting ...');
+        return;
+    }
+    if (audioData.length >= MAX_PACKET_SIZE) {
+        const packet = Buffer.from(audioData.subarray(0, MAX_PACKET_SIZE));
+        audioData = Buffer.from(audioData.subarray(MAX_PACKET_SIZE));
+        wsSound.send(packet);
+        isReadyForNextPacket = false;
+        console.log(`Audio data packet sent, size: ${packet.length}`);
+        mainWindow.webContents.send('triggerTX');
+    } else if (audioData.length > 0) {
+        const packet = audioData;
+        audioData = Buffer.alloc(0);
+        wsSound.send(packet);
+        isReadyForNextPacket = false;
+        console.log(`Audio data packet sent, size: ${packet.length}`);
+        mainWindow.webContents.send('triggerTX');
+    } else {
+        wsSound.send("EOA");
+        console.log('End of audio data sent.');
+        isReadyForNextPacket = true;
+        mainWindow.webContents.send('triggerTX');
+    }
+}
+
+function generateToneData(frequency = 440, duration = 1, sampleRate = 16000) {
+    const samples = duration * sampleRate;
+    const toneData = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+        toneData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate);
+    }
+    return toneData;
+}
+
+function float32ToInt16Buffer(float32Array) {
+    const int16Array = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+        const intVal = Math.max(-1, Math.min(1, float32Array[i])) * 0x7FFF; // Clamp values to -1 to 1
+        int16Array[i] = intVal;
+    }
+    return Buffer.from(int16Array.buffer);
+}
+
+function sendToneOverWebSocket(wsSound) {
+    const toneData = generateToneData(); // Default 440Hz for 1 second
+    audioData = float32ToInt16Buffer(toneData);
+
+    if (wsSound && wsSound.readyState === WebSocket.OPEN) {
+        sendNextPacket(wsSound);
+    } else {
+        console.log('Audio data not sent, audio server not connected.');
+    }
+}
+
+function startStreaming(wsSound) {
+    isStreaming = true;
+    audioCapture.startCapture();
+
+    audioCapture.on('data', (chunk) => {
+        audioData = Buffer.concat([audioData, chunk]);
+    });
+
+    console.log('Audio streaming started.');
+    sendNextPacket(wsSound);
+}
+
+function stopStreaming() {
+    audioCapture.stopCapture();
+    isStreaming = false;
+    console.log('Audio streaming stopped.');
+}
 
 function connectCommand() {
     if (isLonely) {
         console.log(`Attempting to connect to Command...`);
         wsCommand = new WebSocket(`ws://skuttlehost.local:${currentPort}/Command`);
-        if(currentPort==PRIMARY_PORT){
-            connectsound();  
+        if (currentPort == PRIMARY_PORT) {
+            connectsound();
         }
 
         wsCommand.on('open', () => {
             console.log(`WebSocket Command connected on ${String(currentPort)}`);
             isLonely = false;
-            onerror=false;
+            onerror = false;
             clearTimeout(reconnectTimeout);
             reconnectTimeout = setTimeout(offline, reconnectInterval);
         });
 
         wsCommand.on('close', () => {
-            if(!onerror){
-            console.log('WebSocket Command connection closed');
+            if (!onerror) {
+                console.log('WebSocket Command connection closed');
                 if (isConnectedCommand) {
                     isConnectedCommand = false;
                     isLonely = true;
@@ -81,14 +202,15 @@ function connectCommand() {
             isConnectedCommand = false;
             isLonely = true;
             clearTimeout(reconnectTimeout);
-            onerror= true;
+            onerror = true;
             switchPortsAndReconnect();
             //reconnectTimeout = setTimeout(connectCommand, reconnectInterval);
         });
 
         wsCommand.on('message', (message) => {
+            mainWindow.webContents.send('triggerRX');
             const messageString = message.toString();
-            console.log (messageString);
+            console.log(messageString);
             if (messageString.startsWith('handshake,')) {
                 const [, MODULE, ID] = messageString.split(',');
                 console.log('Received handshake from Skuttlemove');
@@ -96,26 +218,26 @@ function connectCommand() {
                 console.log('ID:', ID);
                 if (!isConnectedCommand) {
                     sendHandshake();
-                    isConnectedCommand = true;  //handshake from server recieved.
+                    isConnectedCommand = true;  //handshake from server received.
                 }
                 console.log("Sending connection status to preload");
                 mainWindow.webContents.send("status", `Connected!!! to ${MODULE}`);
             } else if (messageString.startsWith('heartbeat,')) {
-                if (!isConnectedCommand){
+                if (!isConnectedCommand) {
                     const [, MODULE, ID] = messageString.split(',');
                     console.log('Received handshake from Skuttlemove');
                     console.log('MODULE:', MODULE);
                     console.log('ID:', ID);
                     sendHandshake();
-                    isConnectedCommand = true;  //handshake from server recieved.
+                    isConnectedCommand = true;  //handshake from server received.
                     console.log("Sending connection status to preload");
-                    mainWindow.webContents.send("status", `Connected!!! to ${MODULE}`); 
-                }else{
+                    mainWindow.webContents.send("status", `Connected!!! to ${MODULE}`);
+                } else {
                     console.log(".");
                 }
-            } else if (messageString.startsWith('camconnect')){
-                connectcam();          
-            } else if (messageString.startsWith('camdisconnect')){
+            } else if (messageString.startsWith('camconnect')) {
+                connectcam();
+            } else if (messageString.startsWith('camdisconnect')) {
                 if (wsCamera) {
                     wsCamera.close();
                     console.log('Disconnected from the camera server');
@@ -126,7 +248,7 @@ function connectCommand() {
             clearTimeout(reconnectTimeout);
             isLonely = false;
             reconnectTimeout = setTimeout(offline, reconnectInterval);
-        
+
         });
     }
 }
@@ -137,6 +259,7 @@ function switchPortsAndReconnect() {
     reconnectTimeout = setTimeout(connectCommand, reconnectInterval);
     //if(currentPort == BACKUP_PORT) startPrimaryServerCheck();
 }
+
 
 function startPrimaryServerCheck() {
     const checkFrequency = 20000; // Check every 10 seconds
@@ -162,75 +285,71 @@ function startPrimaryServerCheck() {
     }, checkFrequency);
 }
 
-
-function connectcam(){
+function connectcam() {
     console.log(`Attempting to connect to Camserver...`);
-        wsCamera = new WebSocket(`ws://skuttlehost.local:${PRIMARY_PORT}/Camera`);
+    wsCamera = new WebSocket(`ws://skuttlehost.local:${PRIMARY_PORT}/Camera`);
 
-        wsCamera.on('open', () => {
-            console.log('Camera connected');
-            //console.log('WebSocket Camera type:', typeof wsCamera);
-        });
+    wsCamera.on('open', () => {
+        console.log('Camera connected');
+        //console.log('WebSocket Camera type:', typeof wsCamera);
+    });
 
-        wsCamera.on('close', () => {
-            if(!onerror){
-            console.log('Camera connection closed');       
-            }
-        });
+    wsCamera.on('close', () => {
+        if (!onerror) {
+            console.log('Camera connection closed');
+        }
+    });
 
-        wsCamera.on('error', (error) => {
+    wsCamera.on('error', (error) => {
+        console.error('WebSocket Camera error during connection:', error);
+    });
 
-            console.error('WebSocket Camera error during connection:', error);
-        });
-
-        // Listen for messages from the camera server
-        wsCamera.on('message', (data) => {
-            // Assuming 'data' is binary video data received on wsCamera
-            //console.log('+');
-            if (mainWindow) {
-                mainWindow.webContents.send('video', data);
-            }
-
-        });
+    // Listen for messages from the camera server
+    wsCamera.on('message', (data) => {
+        mainWindow.webContents.send('triggerRX');
+        // Assuming 'data' is binary video data received on wsCamera
+        //console.log('+');
+        if (mainWindow) {
+            mainWindow.webContents.send('video', data);
+        }
+    });
 }
 
-function connectsound(){
+function connectsound() {
     console.log(`Attempting to connect to audio...`);
-        wsSound = new WebSocket(`ws://skuttlehost.local:${currentPort}/Sound`);
+    wsSound = new WebSocket(`ws://skuttlehost.local:${currentPort}/Sound`);
 
-        wsSound.on('open', () => {
-            console.log('Audio connected');
-            //console.log('WebSocket Camera type:', typeof wsCamera);
-        });
+    wsSound.on('open', () => {
+        console.log('Audio connected');
+        //console.log('WebSocket Camera type:', typeof wsCamera);
+    });
 
-        wsSound.on('close', () => {
-            if(!onerror){
-            console.log('Audio connection closed');       
-            }
-        });
+    wsSound.on('close', () => {
+        if (!onerror) {
+            console.log('Audio connection closed');
+        }
+    });
 
-        wsSound.on('error', (error) => {
+    wsSound.on('error', (error) => {
+        console.error('WebSocket Audio error during connection:', error);
+    });
 
-            console.error('WebSocket Audio error during connection:', error);
-        });
-
-        // Listen for messages from the audio server
-        wsSound.on('message', (message) => {
-            const messageString = message.toString();
-            if (messageString === "PAUSE") {
-                isSoundPaused = true;
-                console.log("Audio streaming paused by server.");
-            } else if (messageString === "RESUME") {
-                isSoundPaused = false;
-                console.log("Audio streaming resumed by server.");
-            } else if (messageString === "READY") {
-                isReadyForNextPacket = true;
-            } else {
-            }
-            if(isReadyForNextPacket&&!isSoundPaused){sendNextPacket();} 
-        });
+    // Listen for messages from the audio server
+    wsSound.on('message', (message) => {
+        mainWindow.webContents.send('triggerRX');
+        const messageString = message.toString();
+        if (messageString === "PAUSE") {
+            isSoundPaused = true;
+            console.log("Audio streaming paused by server.");
+        } else if (messageString === "RESUME") {
+            isSoundPaused = false;
+            console.log("Audio streaming resumed by server.");
+        } else if (messageString === "READY") {
+            isReadyForNextPacket = true;
+            sendNextPacket(wsSound);
+        }
+    });
 }
-
 
 function offline() {
     if (isLonely) {
@@ -245,6 +364,7 @@ function offline() {
         console.log('Helloooo, is anybody there?');
         const pingMessage = 'ping';
         wsCommand.send(pingMessage);
+        mainWindow.webContents.send('triggerTX');
         clearTimeout(reconnectTimeout);
         reconnectTimeout = setTimeout(offline, reconnectInterval);
     }
@@ -254,140 +374,52 @@ function sendHandshake() {
     // Send handshake data only for wsCommand
     const handshakeData = `handshake,${ID},${SN}`;
     setTimeout(() => {
-    wsCommand.send(handshakeData);
-    console.log(`Sent handshake to Command:`, handshakeData);
+        wsCommand.send(handshakeData);
+        mainWindow.webContents.send('triggerTX');
+        console.log(`Sent handshake to Command:`, handshakeData);
     }, 20);
-  }
+}
 
 //IPC communication with renderer process (renderer.js)
 ipcMain.on('r2m', (event, command) => {
-	//const DATA =`command,${command.commandString}`;
-	const commandData = `command,${command.commandString}`;
-	console.log("sent to Skuttlemove: ", commandData);
-	if (isConnectedCommand) { wsCommand.send(commandData); }
+    //const DATA =`command,${command.commandString}`;
+    const commandData = `command,${command.commandString}`;
+    console.log("sent to Skuttlemove: ", commandData);
+    if (isConnectedCommand) {
+        wsCommand.send(commandData);
+        mainWindow.webContents.send('triggerTX');
+    }
 });
+
 ipcMain.on('Ready', () => {
     connectCommand();
-    
 });
+
 ipcMain.on('playTone', () => {
-    sendToneOverWebSocket();
+    sendToneOverWebSocket(wsSound);
 });
 
 ipcMain.on('streamToggle', () => {
     if (isStreaming) {
         stopStreaming();
-
     } else {
-        startStreaming();
+        startStreaming(wsSound);
     }
 })
 
-function createWindow() {
-	mainWindow = new BrowserWindow({
-		width: 800,
-		height: 600,
-		webPreferences: {
-			nodeIntegration: false,
-			contextIsolation: true,
-			preload: path.join(__dirname, 'preload.js'),
-	        webSecurity: false, // Adjust this as needed
-	        allowRunningInsecureContent: true, // Adjust this as needed
-	        //autoplayPolicy: 'user-gesture-required', // Adjust this as needed
-	        media: {
-	        //    audioCapture: true, // Enable audio capture
-	            videoCapture: true, // Enable video capture
-	        },
-		}
-	});
-
-	mainWindow.loadFile('index.html');
-	mainWindow.on('closed', () => {
-		mainWindow = null;
-	});
-
-}
-
 app.whenReady().then(() => {
-	createWindow();
-	//connectCommand();
+    createWindow();
+    //connectCommand();
 });
 
 app.on('activate', () => {
-	if (mainWindow === null) {
-		createWindow();
-	}
+    if (mainWindow === null) {
+        createWindow();
+    }
 });
 
 app.on('window-all-closed', () => {
-	if (process.platform !== 'darwin') {
-		app.quit();
-	}
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
 });
-
-// Function to generate a simple tone - place this in main.js
-function generateToneData(frequency = 440, duration = 1, sampleRate = 16000) {
-    const samples = duration * sampleRate;
-    const toneData = new Float32Array(samples);
-    for (let i = 0; i < samples; i++) {
-        toneData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate);
-    }
-    return toneData;
-}
-
-// Convert Float32Array to Int16Array and then to Buffer for WebSocket
-function float32ToInt16Buffer(float32Array) {
-    const int16Array = new Int16Array(float32Array.length);
-    for (let i = 0; i < float32Array.length; i++) {
-        const intVal = Math.max(-1, Math.min(1, float32Array[i])) * 0x7FFF; // Clamp values to -1 to 1
-        int16Array[i] = intVal;
-    }
-    return Buffer.from(int16Array.buffer);
-}
-
-// Example usage: Sending a generated tone over WebSocket
-function sendToneOverWebSocket() {
-    offset=0;
-    const toneData = generateToneData(); // Default 440Hz for 1 second
-    audioData = float32ToInt16Buffer(toneData);
-
-    if (wsSound && wsSound.readyState === WebSocket.OPEN) {
-        sendNextPacket();
-    } else {
-        console.log('Audio data not sent, audioserver not connected.');
-    }
-}
-function sendNextPacket() {
-
-    if (isSoundPaused || !isReadyForNextPacket) return;
-    if (offset < audioData.length) {
-        const end = Math.min(offset + 1024, audioData.length); // Ensure packets are 1024 bytes
-        const packet = audioData.slice(offset, end);
-        wsSound.send(packet); // Send the audio data in packets
-        offset += 1024;
-        isReadyForNextPacket = false; // Wait for the next "READY" signal
-        console.log(`Audio data packet sent, size: ${packet.length}`);
-    } else {
-        wsSound.send("EOA"); // Signal end of audio data
-    }
-}
-
-// Start streaming audio
-function startStreaming() {
-    audioRecorder.start().stream().on('data', (chunk) => {
-        audioBuffer = Buffer.concat([audioBuffer, chunk]); // Append new data to the buffer
-        if (wsSound.readyState === WebSocket.OPEN && isReadyForNextPacket) {
-            sendNextPacket(); // Send initial chunk if ready
-        }
-    });
-
-    isStreaming = true;
-    console.log('Audio streaming started.');
-}
-
-// Stop streaming audio
-function stopStreaming() {
-    audioRecorder.stop();
-    isStreaming = false;
-    console.log('Audio streaming stopped.');
-}

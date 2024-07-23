@@ -9,7 +9,7 @@ bool LON = false;
 bool TON = false;
 const int RWPIN = 12; // Drive Servo 1 (right) Pin
 const int LWPIN = 13; // Drive Servo 2 (left) Pin
-const int CTPIN = 15; // Tilt Servo Pin
+const int CTPIN = 0; // Tilt Servo Pin
 const int NUM_MODES = 3; // Number of mode
 const String MODES[] = {"turret", "tank", "car"};
 

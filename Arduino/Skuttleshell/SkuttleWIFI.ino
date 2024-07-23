@@ -3,12 +3,18 @@
 #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include "config.h" // Include the configuration header
+//#define REDLIGHT 33
+
+
+
 
 SkuttleWIFI::SkuttleWIFI() : APserver(80) {}
 long ptime = millis();
 float maxUsedHeapPercentage = 0;
 float maxUsedAudioStack = 0;
 float maxUsedCamStack = 0;
+
+
 
 // Global preferences object for NVS
 Preferences preferences;
@@ -35,6 +41,8 @@ bool getCredentials(char* ssid, char* pass) {
 }
 
 void SkuttleWIFI::begin() {
+    //pinMode(REDLIGHT, OUTPUT);
+    //digitalWrite(REDLIGHT, HIGH);
     Serial.println("Initializing WiFi connection...");
     _connectToWiFi();
 }

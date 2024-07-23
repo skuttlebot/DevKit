@@ -14,8 +14,9 @@
 #include "SkuttleWIFI.h"
 #include "Signalchk.h" //wifi monitoring
 #include "Skuttlesound.h"
-//#define FLASHLIGHT 4//33-red 4-flash
+//#define FLASHLIGHT 4
 #define REDLIGHT 33
+
 
 SkuttleWIFI skuttleWIFI;  //instance of SkuttleWIFI class
 Skuttlemove actionitem; // Create an instance of the Skuttlemove class
@@ -228,34 +229,28 @@ void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
       case WS_EVT_DATA:
         if (strcmp((char*)data, "EOA") == 0) {
           ENDAUDIO=true;
+
+          Serial.println("EOA");
           //skuttlesound.handleEndOfAudio();
           break;
         }
-        if (len % 2 != 0) {
+        else if (len % 2 != 0) {
           Serial.println("Warning: Data length not aligned for 16-bit samples");
-          return;
-        }
-        Serial.println (len);
-        skuttlesound.addToBuffer(data, len);
 
-        break;
+          break;
+        }
+        else{
+          Serial.println (len);
+          ENDAUDIO=false;
+          skuttlesound.addToBuffer(data, len);
+          break;
+        }
+
       default:
         break;
       // Add other cases if needed
    }
 }
-
-/*void SetupWSServer() {
-    server.addHandler(&wsCommand);
-    wsCommand.onEvent(onWebSocketEventCommand);
-    server.addHandler(&wsCamera);
-    wsCamera.onEvent(onWebSocketEventCamera);
-    server.addHandler(&wsSound);
-    wsSound.onEvent(onWebSocketEventSound);
-    Serial.println("WebSocket Handlers Set");
-    server.begin();
-    Serial.println("WebSocket Server Started");
-}*/
 
 void Broadcast(const char *message) {
     Serial.println(message);
