@@ -3,56 +3,59 @@ const controllers = {};
 CSOld = 'NULL';
 let cameraWindowCreated = false;
 let CAMwin = false;
-const gamepStatusElement = document.getElementById('gamepStatus');
+let gamepStatusElement;
+
 let Streaming = false;
 
 window.addEventListener('DOMContentLoaded', () => {
-	console.log('DOMC loop started');
-	let isFirstStatusUpdate = true;
-	window.addEventListener('message', async (event) => {
-		console.log('message loop started');
-		if (event.data.type === 'status') {
-			console.log('status loop started');
-			if (isFirstStatusUpdate) {
-				createCameraWindow();
-				cameraWindowCreated = true;
-				isFirstStatusUpdate = false;
-			}
-			let connectionStatusElement = document.getElementById('status');
-			if (connectionStatusElement) {
-				connectionStatusElement.textContent = event.data.message;
-			}
-		}
+    console.log('DOMC loop started');
+    let isFirstStatusUpdate = true;
+    
+    window.addEventListener('message', async (event) => {
+        console.log('message loop started');
+        if (event.data.type === 'status') {
+            console.log('status loop started');
+            if (isFirstStatusUpdate) {
+                createCameraWindow();
+                cameraWindowCreated = true;
+                isFirstStatusUpdate = false;
+            }
+            let connectionStatusElement = document.getElementById('status');
+            if (connectionStatusElement) {
+                connectionStatusElement.textContent = event.data.message;
+            }
+        }
 
-		if (event.data.type === 'video') {
-			//console.log('Receiving video in the window');
-			const videoPlayer = document.getElementById('cameraFeed');
-			const videoData = event.data.message;
-			if (cameraWindowCreated) {
-				if (typeof videoData === 'string' && videoData.startsWith('http')) {
-					videoPlayer.src = videoData;
-				} else if (videoData instanceof Uint8Array) {
-					const blob = new Blob([videoData], { type: 'video/mp4' });
-					const videoURL = URL.createObjectURL(blob);
-					videoPlayer.src = videoURL;
-				} else {
-					console.error('Unexpected video data format');
-				}
-			}
-		}
-		document.getElementById('playToneButton').addEventListener('click', () => {
-			window.electronAPI.playTone();
-		});
-		document.getElementById('streamToggleButton').addEventListener('click', () => {
-			window.electronAPI.streamToggle();
-			Streaming = !Streaming;
-			document.getElementById('streamToggleButton').textContent = Streaming ? 'Stop Recording' : 'Start Recording';
-		});
-	});
-	electronAPI.Ready();
+        if (event.data.type === 'video') {
+            const videoPlayer = document.getElementById('cameraFeed');
+            const videoData = event.data.message;
+            if (cameraWindowCreated) {
+                if (typeof videoData === 'string' && videoData.startsWith('http')) {
+                    videoPlayer.src = videoData;
+                } else if (videoData instanceof Uint8Array) {
+                    const blob = new Blob([videoData], { type: 'video/mp4' });
+                    const videoURL = URL.createObjectURL(blob);
+                    videoPlayer.src = videoURL;
+                } else {
+                    console.error('Unexpected video data format');
+                }
+            }
+        }
+    });
+
+    document.getElementById('playToneButton').addEventListener('click', () => {
+        window.electronAPI.playTone();
+    });
+    document.getElementById('streamToggleButton').addEventListener('click', () => {
+        window.electronAPI.streamToggle();
+        Streaming = !Streaming;
+        document.getElementById('streamToggleButton').textContent = Streaming ? 'Stop Recording' : 'Start Recording';
+    });
+
+    window.addEventListener("gamepadconnected", connecthandler);
+    window.addEventListener("gamepaddisconnected", disconnecthandler);
+    electronAPI.Ready();
 });
-window.addEventListener("gamepadconnected", connecthandler);
-window.addEventListener("gamepaddisconnected", disconnecthandler);
 
 if (!haveEvents) {
 	setInterval(scangamepads, 500);
@@ -71,7 +74,9 @@ function addgamepad(gamepad) {  //set up the data structure for the gamepad
 
 	const t = document.createElement("div");
 	t.textContent = `gamepad: ${gamepad.id}`;
-	gamepStatusElement.textContent = `Connected to: ${gamepad.id}`;
+	console.log("renderer sees: " + `gamepad: ${gamepad.id}`);
+	//gamepStatusElement.textContent = `Connected to: ${gamepad.id}`;
+	//const gamepStatusElement = document.getElementById('gamepStatus');
 
 	const b = document.createElement("ul");
 	b.className = "buttons";
@@ -126,12 +131,17 @@ function removegamepad(gamepad) {
 	delete controllers[gamepad.index];
 }
 
+
 function updateStatus() {
 	if (!haveEvents) {
 		scangamepads();
 	}
 	const allCommands = []; // Array to store all the commands
 	Object.entries(controllers).forEach(([i, controller]) => {
+
+		//gamepStatusElement.textContent = `Connected to: ${controller.id}`;
+		//console.log(`Connected to: ${controller.id}`);
+
 		const d = document.getElementById(`controller${i}`);
 		const buttons = d.getElementsByClassName("button");
 
@@ -175,6 +185,7 @@ function updateStatus() {
 		triggerTX();
 		CSOld = commandString;
 	}
+
 
 	// Update UI
 	requestAnimationFrame(updateStatus);

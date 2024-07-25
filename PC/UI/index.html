@@ -14,22 +14,31 @@
     </div>
     <div class="center-column">
       <div class="dashboard">
-        <div id="status" class="status">Waiting for Device</div>
-        <div id="gamepStatus" class="gamepad-status">No gamepad connected</div>
-        <div class="leds">
-          <div class="led-container">
-            <div id="ledReceive" class="led"></div>
-            <span>RX</span>
+        <div class="connections">
+          <div id="connection-text">
+            <div id="status" class="status">Waiting for Device</div>
           </div>
-          <div class="led-container">
-            <div id="ledTransmit" class="led"></div>
-            <span>TX</span>
+          <div id="connection-signal"></div>
+          
+        </div>
+        <div class="gauges-leds">
+          <div class="leds">
+            <div class="led-container">
+              <div id="ledReceive" class="led"></div>
+              <div class="led-label">RX</div>
+            </div>
+            <div class="led-container">
+              <div id="ledTransmit" class="led"></div>
+              <div class="led-label">TX</div>
+            </div>
           </div>
-          <div class="fuel-gauge">
-            <div id="fuelGaugeFill" class="fuel-gauge-fill"></div>
-          </div>
-          <div class="fuel-label">
-            <span>Audio</span>
+          <div class="gauges">
+            <div class="fuel-gauge">
+              <div id="fuelGaugeFill" class="fuel-gauge-fill"></div>
+            </div>
+            <div class="fuel-label">
+              <span>Audio</span>
+            </div>
           </div>
         </div>
       </div>
@@ -41,9 +50,9 @@
       </div>
     </div>
     <div class="right-column">
+      <div id="gamepStatus" class="gamepad-status">No gamepad connected</div>
       <div id="controllerOutput" class="controller-output">
-        <p>Insert controller and press any button</p>      </div>
-
+        <p>Insert controller and press any button</p>
       </div>
     </div>
   </div>

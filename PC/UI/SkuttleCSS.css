@@ -13,10 +13,11 @@ body {
   background-color: #2d2d2d;
   border: 2px solid #f39c12;
   border-radius: 10px;
-  padding: 20px;
+  padding: 10px;
   display: flex;
-  width: 90vw;
-  height: 90vh;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .left-column {
@@ -24,7 +25,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-right: 10px; /* Add margin for spacing */
+  padding: 5px;
+  box-sizing: border-box;
+  
 }
 
 .control-button {
@@ -33,40 +36,90 @@ body {
   padding: 10px 20px;
   cursor: pointer;
   font-size: 16px;
-  margin-bottom: 10px;
+  margin-bottom: 5px;
+  border: 2px solid #f39c12;
+  border-radius: 10px;
 }
 
 .control-button:hover {
   background-color: #e67e22;
+  border: 2px solid #f39c12;
+  border-radius: 10px;
 }
 
 .center-column {
-  width: 48%; /* Adjusted width */
+  width: 50%; /* Adjusted width */
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  margin-right: 10px; /* Add margin for spacing */
+  justify-content: flex-start;
+  padding: 5px ;
+  box-sizing: border-box;
+  
 }
 
 .dashboard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
   width: 100%;
-  margin-bottom: 10px;
+  margin-bottom: 2px;
   font-size: 75%;
   text-align: left;
-  height: 20%; /* Adjusted height */
+  padding: 5px;
+  box-sizing: border-box;
 }
 
-.leds {
+.connections{
+  width:100%;
+  height:auto;
+  border: 2px solid #f39c12;
+  border-radius: 10px;
+  padding: 5px;
+  align-items: right;
+  box-sizing: border-box;
+}
+
+.connections-text{
+  flex-grow: 1; /* Take up the remaining space */
+  height: auto; /* Height is dependent on the content */
+  padding: 5px; /* Add padding if needed */
+  box-sizing: border-box;
+}
+
+#gamepStatus {
+  visibility: visible;
+  display: block;
+  border: 2px solid #f39c12;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+
+
+.connections-signal{
+  width:auto;
+  height:auto;
+  padding: 5px;
+  font-size: 115%;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.gauges-leds{
   display: flex;
-  justify-content: left;
-  align-items: center;
+  width: 100%;
+  align-items: flex-start; /* Align items to the start */
+  padding: 5px; /* Add padding for internal spacing */
+
 }
 
 .led-container {
   display: flex;
   align-items: center;
-  margin-right: 10px;
+  padding: 5px;
+
 }
 
 .led {
@@ -75,44 +128,69 @@ body {
   border-radius: 50%;
   width: 20px;
   height: 20px;
-  margin-right: 5px;
+  margin-right: 5px; /* Space between LED and label */
+  margin-bottom: 2px;
+}
+
+.led-label {
+  color: #f1f1f1;
+  font-size: 14px;
+}
+
+
+.leds{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.gauges {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;  
+  padding: 5px;
+
 }
 
 .fuel-gauge {
   background-color: #444;
   border: 1px solid #555;
-  height: 20px;
-  width: 100px;
-  margin-left: 10px;
+  height: 40px;  /* Reduced height */
+  width: 10px;  /* Reduced width */
+  position: relative;
 }
 
 .fuel-gauge-fill {
   background-color: #f39c12;
-  height: 100%;
-  width: 0;
+  height: 0;
+  width: 100%; /* Fill the full width of the fuel gauge */
+  position: absolute;
+  bottom: 0; /* Start filling from the bottom */
   transition: height 0.3s ease; /* Smooth transition for height changes */
 }
 
 .fuel-label {
   text-align: center;
   margin-top: 5px; /* Adjust spacing as needed */
-  color: #f1f1f1; /* Ensure label text is visible */
 }
-/*.camera-window {
+
+.camera-window {
   position: relative;
   width: 100%;
   height: 60%;
   border: 2px solid #f39c12;
-  margin-bottom: 10px;
-}*/
+  padding: 5px;
+}
 
-.camera-window {
+/*.camera-window {
   position: relative;
-  width: 480px; /* Fixed width */
-  height: 360px; /* Fixed height */
+  width: 480px; 
+  height: 360px; 
   border: 2px solid #f39c12;
   margin: 0 auto;
-}
+} 
+*/
 
 
 .camera-feed {
@@ -124,32 +202,39 @@ body {
 .command-log {
   background-color: #333;
   border: 1px solid #444;
-  padding: 10px;
+  padding: 3px;
   width: 100%;
-  height: 20%; /* Adjusted height */
+  height: auto;
+  border: 2px solid #f39c12;
+  border-radius: 10px;
+  box-sizing: border-box;
 }
 
 .right-column {
   width: 33.33%;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: column;  
+  padding: 5px;
+  align-items: center;  
+  box-sizing: border-box;
+
+
 }
 
 .controller-output {
-  background-color: #444;
-  border: 1px solid #555;
-  padding: 10px;
   width: 100%;
-  height: 80%;
-  margin-bottom: 10px;
+  height: 100%;
+  background-color: #444;
+  border: 2px solid #f39c12;
+  border-radius: 5px;
+  box-sizing: border-box;
 }
 
 .start-message {
-  background-color: #555;
-  border: 1px solid #666;
-  padding: 10px;
+
+  padding: 5px;
   width: 100%;
   text-align: center;
-  font-size: 1.2em;
+  font-size: .9em;
 }
+

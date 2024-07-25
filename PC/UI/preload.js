@@ -39,5 +39,6 @@ ipcRenderer.on('triggerRX', () => {
 });
 
 ipcRenderer.on('updateFuelGauge', (event, percentage) => {
+  console.log(`Received updateFuelGauge in preload with percentage: ${percentage}`);
   window.dispatchEvent(new CustomEvent('updateFuelGauge', { detail: percentage }));
 });

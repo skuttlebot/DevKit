@@ -13,7 +13,7 @@ const reconnectInterval = 5000;
 const MAX_PACKET_SIZE = 1024;
 const MAX_AUDIO_BUFFER_SIZE = 2097152; // 2 MB
 
-isStreaming = false;
+let isStreaming = false;
 let audioData = Buffer.alloc(0);
 let isSoundPaused = false;
 let isReadyForNextPacket = true;
@@ -48,6 +48,49 @@ let primaryServerCheckInterval;
 let cameraWindowCreated = false;
 let isConnectedCommand = false;
 
+//IPC communication with renderer process (renderer.js)
+ipcMain.on('r2m', (event, command) => {
+    //const DATA =`command,${command.commandString}`;
+    const commandData = `command,${command.commandString}`;
+    //console.log("sent to Skuttlemove: ", commandData);
+    if (isConnectedCommand) {
+        wsCommand.send(commandData);
+        mainWindow.webContents.send('triggerTX');
+    }
+});
+
+ipcMain.on('Ready', () => {
+    connectCommand();
+});
+
+ipcMain.on('playTone', () => {
+    sendToneOverWebSocket(wsSound);
+});
+
+ipcMain.on('streamToggle', () => {
+    if (isStreaming) {
+        stopStreaming();
+    } else {
+        startStreaming(wsSound);
+    }
+})
+
+app.whenReady().then(() => {
+    createWindow();
+});
+
+app.on('activate', () => {
+    if (mainWindow === null) {
+        createWindow();
+    }
+});
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 800,
@@ -65,108 +108,44 @@ function createWindow() {
             },
         }
     });
-
     mainWindow.loadFile('index.html');
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
 }
 
-function startBufferCheck() {
-    if (!bufferCheckInterval) {
-        bufferCheckInterval = setInterval(checkBufferSize, 500); // Check buffer size every 1/2 second
-    }
-}
-
-function checkBufferSize() {
-    if (audioData.length > 0) {
-        const percentage = (audioData.length / MAX_AUDIO_BUFFER_SIZE) * 100;
-        mainWindow.webContents.send('updateFuelGauge', percentage);
+function offline() {
+    if (isLonely) {
+        console.log('Lost Connection to Command');
+        isConnectedCommand = false;
+        mainWindow.webContents.send('status', 'Disconnected');
+        wsCommand.close();
+        clearTimeout(reconnectTimeout);
+        switchPortsAndReconnect();
     } else {
-        clearInterval(bufferCheckInterval);
-        bufferCheckInterval = null;
-        isPlaying = false;
-    }
-}
-
-function sendNextPacket(wsSound) {
-    if (!isPlaying) {
-        startBufferCheck();
-        isPlaying = true;
-    }
-    if (isSoundPaused || !isReadyForNextPacket || (isStreaming && audioData.length < MAX_PACKET_SIZE)) {
-        setTimeout(() => sendNextPacket(wsSound), 50);
-        console.log('Waiting ...');
-        return;
-    }
-    if (audioData.length >= MAX_PACKET_SIZE) {
-        const packet = Buffer.from(audioData.subarray(0, MAX_PACKET_SIZE));
-        audioData = Buffer.from(audioData.subarray(MAX_PACKET_SIZE));
-        wsSound.send(packet);
-        isReadyForNextPacket = false;
-        console.log(`Audio data packet sent, size: ${packet.length}`);
+        isLonely = true;
+        console.log('Helloooo, is anybody there?');
+        const pingMessage = 'ping';
+        wsCommand.send(pingMessage);
         mainWindow.webContents.send('triggerTX');
-    } else if (audioData.length > 0) {
-        const packet = audioData;
-        audioData = Buffer.alloc(0);
-        wsSound.send(packet);
-        isReadyForNextPacket = false;
-        console.log(`Audio data packet sent, size: ${packet.length}`);
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = setTimeout(offline, reconnectInterval);
+    }
+}
+
+function sendHandshake() {
+    // Send handshake data only for wsCommand
+    const handshakeData = `handshake,${ID},${SN}`;
+    setTimeout(() => {
+        wsCommand.send(handshakeData);
         mainWindow.webContents.send('triggerTX');
-    } else {
-        wsSound.send("EOA");
-        console.log('End of audio data sent.');
-        isReadyForNextPacket = true;
-        mainWindow.webContents.send('triggerTX');
-    }
+        console.log(`Sent handshake to Command:`, handshakeData);
+    }, 20);
 }
+    
 
-function generateToneData(frequency = 440, duration = 1, sampleRate = 16000) {
-    const samples = duration * sampleRate;
-    const toneData = new Float32Array(samples);
-    for (let i = 0; i < samples; i++) {
-        toneData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate);
-    }
-    return toneData;
-}
-
-function float32ToInt16Buffer(float32Array) {
-    const int16Array = new Int16Array(float32Array.length);
-    for (let i = 0; i < float32Array.length; i++) {
-        const intVal = Math.max(-1, Math.min(1, float32Array[i])) * 0x7FFF; // Clamp values to -1 to 1
-        int16Array[i] = intVal;
-    }
-    return Buffer.from(int16Array.buffer);
-}
-
-function sendToneOverWebSocket(wsSound) {
-    const toneData = generateToneData(); // Default 440Hz for 1 second
-    audioData = float32ToInt16Buffer(toneData);
-
-    if (wsSound && wsSound.readyState === WebSocket.OPEN) {
-        sendNextPacket(wsSound);
-    } else {
-        console.log('Audio data not sent, audio server not connected.');
-    }
-}
-
-function startStreaming(wsSound) {
-    isStreaming = true;
-    audioCapture.startCapture();
-
-    audioCapture.on('data', (chunk) => {
-        audioData = Buffer.concat([audioData, chunk]);
-    });
-
-    console.log('Audio streaming started.');
-    sendNextPacket(wsSound);
-}
-
-function stopStreaming() {
-    audioCapture.stopCapture();
-    isStreaming = false;
-    console.log('Audio streaming stopped.');
-}
+    
+// web sockets
 
 function connectCommand() {
     if (isLonely) {
@@ -351,75 +330,108 @@ function connectsound() {
     });
 }
 
-function offline() {
-    if (isLonely) {
-        console.log('Lost Connection to Command');
-        isConnectedCommand = false;
-        mainWindow.webContents.send('status', 'Disconnected');
-        wsCommand.close();
-        clearTimeout(reconnectTimeout);
-        switchPortsAndReconnect();
-    } else {
-        isLonely = true;
-        console.log('Helloooo, is anybody there?');
-        const pingMessage = 'ping';
-        wsCommand.send(pingMessage);
-        mainWindow.webContents.send('triggerTX');
-        clearTimeout(reconnectTimeout);
-        reconnectTimeout = setTimeout(offline, reconnectInterval);
+
+// Audio related functions
+
+function startBufferCheck() {
+    if (!bufferCheckInterval) {
+        bufferCheckInterval = setInterval(checkBufferSize, 500); // Check buffer size every 1/2 second
     }
 }
 
-function sendHandshake() {
-    // Send handshake data only for wsCommand
-    const handshakeData = `handshake,${ID},${SN}`;
-    setTimeout(() => {
-        wsCommand.send(handshakeData);
-        mainWindow.webContents.send('triggerTX');
-        console.log(`Sent handshake to Command:`, handshakeData);
-    }, 20);
+function checkBufferSize() {
+    if (audioData.length > 0) {
+        const percentage = (audioData.length / MAX_AUDIO_BUFFER_SIZE) * 100;
+        mainWindow.webContents.send('updateFuelGauge', percentage);
+        console.log(`Audio buffer size: ${audioData.length} (${percentage.toFixed(2)}%)`);
+    } else {
+        clearInterval(bufferCheckInterval);
+        bufferCheckInterval = null;
+        isPlaying = false;
+    }
 }
 
-//IPC communication with renderer process (renderer.js)
-ipcMain.on('r2m', (event, command) => {
-    //const DATA =`command,${command.commandString}`;
-    const commandData = `command,${command.commandString}`;
-    console.log("sent to Skuttlemove: ", commandData);
-    if (isConnectedCommand) {
-        wsCommand.send(commandData);
+function sendNextPacket(wsSound) {
+    if (!isPlaying) {
+        startBufferCheck();
+        isPlaying = true;
+    }
+    if (isSoundPaused || !isReadyForNextPacket || (isStreaming && audioData.length < MAX_PACKET_SIZE)) {
+        setTimeout(() => sendNextPacket(wsSound), 50);
+        console.log('Waiting ...');
+        return;
+    }
+    if (audioData.length >= MAX_PACKET_SIZE) {
+        const packet = Buffer.from(audioData.subarray(0, MAX_PACKET_SIZE));
+        audioData = Buffer.from(audioData.subarray(MAX_PACKET_SIZE));
+        wsSound.send(packet);
+        isReadyForNextPacket = false;
+        //console.log(`Audio data packet sent, size: ${packet.length}`);
+        mainWindow.webContents.send('triggerTX');
+    } else if (audioData.length > 0) {
+        const packet = audioData;
+        audioData = Buffer.alloc(0);
+        wsSound.send(packet);
+        isReadyForNextPacket = false;
+        //console.log(`Audio data packet sent, size: ${packet.length}`);
+        mainWindow.webContents.send('triggerTX');
+    } else {
+        wsSound.send("EOA");
+        console.log('End of audio data sent.');
+        isReadyForNextPacket = true;
         mainWindow.webContents.send('triggerTX');
     }
-});
+}
 
-ipcMain.on('Ready', () => {
-    connectCommand();
-});
+function generateToneData(frequency = 440, duration = 1, sampleRate = 16000) {
+    const samples = duration * sampleRate;
+    const toneData = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+        toneData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate);
+    }
+    return toneData;
+}
 
-ipcMain.on('playTone', () => {
-    sendToneOverWebSocket(wsSound);
-});
+function float32ToInt16Buffer(float32Array) {
+    const int16Array = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+        const intVal = Math.max(-1, Math.min(1, float32Array[i])) * 0x7FFF; // Clamp values to -1 to 1
+        int16Array[i] = intVal;
+    }
+    return Buffer.from(int16Array.buffer);
+}
 
-ipcMain.on('streamToggle', () => {
-    if (isStreaming) {
-        stopStreaming();
+function sendToneOverWebSocket(wsSound) {
+    const toneData = generateToneData(); // Default 440Hz for 1 second
+    audioData = float32ToInt16Buffer(toneData);
+
+    if (wsSound && wsSound.readyState === WebSocket.OPEN) {
+        sendNextPacket(wsSound);
     } else {
-        startStreaming(wsSound);
+        console.log('Audio data not sent, audio server not connected.');
     }
-})
+}
 
-app.whenReady().then(() => {
-    createWindow();
-    //connectCommand();
-});
+function startStreaming(wsSound) {
+    isStreaming = true;
+    audioCapture.startCapture();
 
-app.on('activate', () => {
-    if (mainWindow === null) {
-        createWindow();
-    }
-});
+    audioCapture.on('data', (chunk) => {
+        audioData = Buffer.concat([audioData, chunk]);
+    });
 
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
+    audioCapture.on('error', (err) => {
+        console.error('Audio capture error:', err);
+    });
+
+    console.log('Audio streaming started.');
+    sendNextPacket(wsSound);
+}
+
+function stopStreaming() {
+    audioCapture.stopCapture();
+    isStreaming = false;
+    console.log('Audio streaming stopped.');
+}
+
+
