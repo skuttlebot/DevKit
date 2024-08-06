@@ -1,4 +1,27 @@
-//Skuttleshell is the central command structure
+/*# License and Contribution Guidelines
+
+## License
+This project is licensed under the MIT License. You are free to use, modify, and distribute this software for both personal and commercial purposes, as long as the original copyright notice and this permission notice appear in all copies or substantial portions of the software.
+
+See the [LICENSE](LICENSE) file for more details.
+
+## Contribution Guidelines
+We welcome contributions from the community! By contributing to this project, you agree to license your contributions under the same MIT License.
+
+### How to Contribute
+1. **Fork** the repository.
+2. **Create a branch** for your feature or bug fix.
+3. **Commit** your changes to your branch.
+4. **Push** your branch to your fork.
+5. **Submit a Pull Request** to this repository with a clear description of your changes.
+
+Please join us on discord, patreon
+
+## Community and Support
+Join our community discussions on GitHub Issues to ask questions, share ideas, and get support from fellow developers and maintainers.
+
+Happy coding!
+//Skuttleshell is the central command structure*/
 #include <Arduino.h> 
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>    
