@@ -137,14 +137,36 @@ void Skuttlecam::camReport(void*pvParameters){
 }
 
 void Skuttlecam::off() {
-  String msg ="I've turned the camera off!";
+  String msg = "I've turned the camera off!";
   Serial.println(msg);
-  wsCommand.textAll(msg);
-  if (fb != nullptr) {
-    esp_camera_fb_return(fb);
-    fb = nullptr;       // Set fb to nullptr after returning the frame buffer
+  wsCommand.textAll(msg);  
+
+  // Stop the camTask and camReport tasks
+  if (camTaskHandle != NULL) {
+    Serial.println("Stopping camTask...");
+    vTaskDelete(camTaskHandle);
+    camTaskHandle = NULL;
+  } else {
+    Serial.println("camTaskHandle is NULL");
   }
-  esp_camera_deinit();
-  CAMINIT=false;
+
+  // Return the frame buffer if it is not null
+  if (fb != nullptr) {
+    Serial.println("Returning frame buffer...");
+    esp_camera_fb_return(fb);
+    fb = nullptr; // Set fb to nullptr after returning the frame buffer
+  } else {
+    Serial.println("fb is NULL");
+  }
+
+  // Deinitialize the camera
+  Serial.println("Deinitializing camera...");
+  esp_err_t err = esp_camera_deinit();
+  if (err != ESP_OK) {
+    Serial.printf("Camera deinitialization failed with error 0x%x\n", err);
+  } else {
+    Serial.println("Camera deinitialized successfully");
+    CAMINIT = false;
+  }
 }
 

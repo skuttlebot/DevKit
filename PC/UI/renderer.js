@@ -10,13 +10,14 @@ let Streaming = false;
 window.addEventListener('DOMContentLoaded', () => {
     console.log('DOMC loop started');
     let isFirstStatusUpdate = true;
+	const cameraFeed = document.getElementById('cameraFeed');
+	const placeholderImage = document.getElementById('placeholderImage');
     
     window.addEventListener('message', async (event) => {
         console.log('message loop started');
         if (event.data.type === 'status') {
             console.log('status loop started');
             if (isFirstStatusUpdate) {
-                createCameraWindow();
                 cameraWindowCreated = true;
                 isFirstStatusUpdate = false;
             }
@@ -26,22 +27,32 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        if (event.data.type === 'video') {
-            const videoPlayer = document.getElementById('cameraFeed');
-            const videoData = event.data.message;
-            if (cameraWindowCreated) {
-                if (typeof videoData === 'string' && videoData.startsWith('http')) {
-                    videoPlayer.src = videoData;
-                } else if (videoData instanceof Uint8Array) {
-                    const blob = new Blob([videoData], { type: 'video/mp4' });
-                    const videoURL = URL.createObjectURL(blob);
-                    videoPlayer.src = videoURL;
-                } else {
-                    console.error('Unexpected video data format');
-                }
-            }
-        }
-    });
+		if (event.data.type === 'video') {
+			const videoData = event.data.message;
+			if (videoData) {
+			  if (typeof videoData === 'string' && videoData.startsWith('http')) {
+				cameraFeed.src = videoData;
+				cameraFeed.style.display = 'block';
+				placeholderImage.style.display = 'none';
+			  } else if (videoData instanceof Uint8Array) {
+				const blob = new Blob([videoData], { type: 'video/mp4' });
+				const videoURL = URL.createObjectURL(blob);
+				cameraFeed.src = videoURL;
+				cameraFeed.style.display = 'block';
+				placeholderImage.style.display = 'none';
+			  } else {
+				console.error('Unexpected video data format');
+				cameraFeed.style.display = 'none';
+				placeholderImage.style.display = 'block';
+			  }
+			}
+		  }
+		});
+
+	window.addEventListener('no-video', () => {
+		cameraFeed.style.display = 'none';
+		placeholderImage.style.display = 'block';
+	});
 
     document.getElementById('playToneButton').addEventListener('click', () => {
         window.electronAPI.playTone();
@@ -209,14 +220,14 @@ function scangamepads() {
 	}
 }
 
-function createCameraWindow() {
+/*function createCameraWindow() {
 	const videoElement = document.createElement("img");
 	videoElement.id = "cameraFeed";
 	videoElement.style.width = "480px"; // Ensure it scales to the container
 	videoElement.style.height = "320px"; // Maintain aspect ratio
 	cameraWindow.appendChild(videoElement);
 	console.log('camera window created');
-}
+}*/
 
 // Trigger tone generation in the main process from the renderer
 function requestTonePlayback() {
@@ -259,3 +270,38 @@ function turnOnLED(ledElement, duration = 200) {
         ledElement.style.backgroundColor = '#333';
     }, duration);
 }
+
+// renderer.js
+
+function updateSignalBars(rssi) {
+	const bars = document.querySelectorAll('.signal-bar');
+	let strength;
+  
+	if (rssi >= -50) {
+	  strength = 5; // Excellent signal
+	} else if (rssi >= -60) {
+	  strength = 4; // Good signal
+	} else if (rssi >= -70) {
+	  strength = 3; // Fair signal
+	} else if (rssi >= -80) {
+	  strength = 2; // Weak signal
+	} else if (rssi >= -90) {
+	  strength = 1; // Very weak signal
+	} else {
+	  strength = 0; // No signal
+	}
+  
+	bars.forEach((bar, index) => {
+	  if (index < strength) {
+		bar.classList.add('active');
+	  } else {
+		bar.classList.remove('active');
+	  }
+	});
+  }
+  
+  window.addEventListener('updateRSSI', (event) => {
+	const rssi = event.detail;
+	updateSignalBars(rssi);
+  });
+  

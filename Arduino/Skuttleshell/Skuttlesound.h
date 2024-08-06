@@ -7,6 +7,8 @@ class Skuttlesound {
 private:
     static void play(void *instance); // Make play a static function to be compatible with FreeRTOS task creation
     SemaphoreHandle_t bufferMutex;
+    size_t receivedDataSize = 0;  // Total size of data received in the current interval
+    float receptionRate = 0;      // Data reception rate (bytes per second)
 
 public:
   Skuttlesound();

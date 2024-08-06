@@ -240,7 +240,7 @@ void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
           break;
         }
         else{
-          Serial.println (len);
+          //Serial.println (len);
           ENDAUDIO=false;
           skuttlesound.addToBuffer(data, len);
           break;

@@ -8,7 +8,7 @@
 #define BITS_PER_SAMPLE I2S_BITS_PER_SAMPLE_16BIT
 
 #define SAMPLE_RATE 16000
-#define I2S_BUFFER_SIZE   1024 //was 1024
+#define I2S_BUFFER_SIZE   1024 //max allowed size
 #define CIRCULAR_BUFFER_SIZE (I2S_BUFFER_SIZE * 8) 
 #define FLASHLIGHT 4
 
@@ -41,7 +41,7 @@ void Skuttlesound::begin() {
       .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 4,//was 8
+      .dma_buf_count = 8,//was 8
       .dma_buf_len = I2S_BUFFER_SIZE,
       .use_apll = false, //special clock
       .tx_desc_auto_clear = true // Avoids noise in case of underflow
@@ -141,6 +141,7 @@ void Skuttlesound::processAudio() { // Sends to the i2s for playback
 }
 
 void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
+  receivedDataSize += len; // Track the amount of data received
   if (xSemaphoreTake(bufferMutex, portMAX_DELAY)) { // Take the mutex
     for (size_t i = 0; i < len; i += 2) {
       if (availableAudio < CIRCULAR_BUFFER_SIZE - 1) { // Ensure there is enough space for 16-bit samples
@@ -155,7 +156,7 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
     }
     if(!ENDAUDIO){ // if there has been no indicator of end of data
       wsSound.textAll("READY");
-      Serial.println("Ready");     
+      //Serial.println("Ready");     
     }  
 
     float bufferUsage = (float)availableAudio / CIRCULAR_BUFFER_SIZE;
@@ -164,7 +165,7 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
         wsSound.textAll("RESUME");
         Serial.println("Buffer has space, sent RESUME command to client.");
         wsSound.textAll("READY");
-        Serial.println("Ready");   
+        //Serial.println("Ready");   
 
     }else if(!paused&&(bufferUsage>=.8)){
         paused=true;            
@@ -178,9 +179,12 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
 void Skuttlesound::audioReport(void *pvParameters) {
     Skuttlesound* instance = static_cast<Skuttlesound*>(pvParameters);
     while (true) {
+        instance->receptionRate = (instance->receivedDataSize / 3.0) / 1024.0; // Since vTaskDelay is 3000 ms, divide by 3 to get bytes per second
+        instance->receivedDataSize = 0; // Reset the counter for the next interval
         UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(instance->audioTaskHandle);
         float usedStackPercentage = 100.0 - ((float)stackHighWaterMark / audioStackSize) * 100;
-        String command = "Audio Stack(%): " + String(usedStackPercentage, 2);
+        String command = "Audio Stack(%): " + String(usedStackPercentage, 2)+
+         ", Reception Rate (bps): " + String(instance->receptionRate, 2);;
         Serial.println(command);
         wsCommand.textAll(command);
         vTaskDelay(pdMS_TO_TICKS(3000));

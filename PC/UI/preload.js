@@ -23,8 +23,11 @@ ipcRenderer.on('status', (event, message) => {
 });
 
 
+ipcRenderer.on('no-video', () => {
+  window.dispatchEvent(new CustomEvent('no-video'));
+});
+
 ipcRenderer.on('video', (event, message) => {
-  //console.log(`Video recieved in preload`);
   window.dispatchEvent(new MessageEvent('message', { data: { type: 'video', message } }));
 });
 
@@ -41,4 +44,8 @@ ipcRenderer.on('triggerRX', () => {
 ipcRenderer.on('updateFuelGauge', (event, percentage) => {
   console.log(`Received updateFuelGauge in preload with percentage: ${percentage}`);
   window.dispatchEvent(new CustomEvent('updateFuelGauge', { detail: percentage }));
+});
+
+ipcRenderer.on('updateRSSI', (event, rssi) => {
+  window.dispatchEvent(new CustomEvent('updateRSSI', { detail: rssi }));
 });

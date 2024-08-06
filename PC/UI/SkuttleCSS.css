@@ -72,8 +72,10 @@ body {
 }
 
 .connections{
+  display: flex;
   width:100%;
   height:auto;
+  justify-content: space-between;
   border: 2px solid #f39c12;
   border-radius: 10px;
   padding: 5px;
@@ -88,16 +90,6 @@ body {
   box-sizing: border-box;
 }
 
-#gamepStatus {
-  visibility: visible;
-  display: block;
-  border: 2px solid #f39c12;
-  border-radius: 10px;
-  box-sizing: border-box;
-}
-
-
-
 .connections-signal{
   width:auto;
   height:auto;
@@ -105,6 +97,25 @@ body {
   font-size: 115%;
   text-align: center;
   box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+}
+
+.signal-bar {
+  width: 10px;
+  background-color: #444;
+  margin: 0 2px;
+  border-radius: 2px;
+}
+
+.signal-bar.bar-1 { height: 10px; }
+.signal-bar.bar-2 { height: 15px; }
+.signal-bar.bar-3 { height: 20px; }
+.signal-bar.bar-4 { height: 25px; }
+.signal-bar.bar-5 { height: 30px; }
+
+.signal-bar.active {
+  background-color: #f39c12;
 }
 
 .gauges-leds{
@@ -181,23 +192,19 @@ body {
   height: 60%;
   border: 2px solid #f39c12;
   padding: 5px;
+  box-sizing: border-box;
 }
 
-/*.camera-window {
-  position: relative;
-  width: 480px; 
-  height: 360px; 
-  border: 2px solid #f39c12;
-  margin: 0 auto;
-} 
-*/
-
-
-.camera-feed {
+.camera-feed, .placeholder-image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: cover; /* Ensures the image/video covers the area */
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
+
 
 .command-log {
   background-color: #333;
@@ -219,6 +226,15 @@ body {
   box-sizing: border-box;
 
 
+}
+
+
+#gamepStatus {
+  visibility: visible;
+  display: block;
+  border: 2px solid #f39c12;
+  border-radius: 10px;
+  box-sizing: border-box;
 }
 
 .controller-output {

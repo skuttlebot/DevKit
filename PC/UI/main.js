@@ -20,13 +20,16 @@ let isReadyForNextPacket = true;
 let bufferCheckInterval;
 let mainWindow;
 let isPlaying = false;
+let transmissionDelay = 50; // Initial delay in ms
+const ADAPTIVE_DELAY_STEP = 10; // Step for adaptive delay adjustment
+let receptionRateKbps = 60; // Initial reception rate in kbps (from your observation)
 
 const audioOptions = {
     program: process.platform === 'win32' ? 'sox' : 'arecord',
     device: null,
     bits: 16,
     channels: 2,
-    rate: 44100,
+    rate: 16000,
     type: 'wav',
 };
 const audioRecorder = new AudioRecorder(audioOptions);
@@ -211,9 +214,8 @@ function connectCommand() {
                     isConnectedCommand = true;  //handshake from server received.
                     console.log("Sending connection status to preload");
                     mainWindow.webContents.send("status", `Connected!!! to ${MODULE}`);
-                } else {
-                    console.log(".");
-                }
+                } else { console.log(".");}
+            
             } else if (messageString.startsWith('camconnect')) {
                 connectcam();
             } else if (messageString.startsWith('camdisconnect')) {
@@ -221,7 +223,13 @@ function connectCommand() {
                     wsCamera.close();
                     console.log('Disconnected from the camera server');
                 }
-            } else {
+            } else if (messageString.includes('RSSI(dBm)')) {
+                const rssiMatch = messageString.match(/RSSI\(dBm\): (-?\d+)/);
+                    if (rssiMatch) {
+                        const rssi = parseInt(rssiMatch[1]);
+                        mainWindow.webContents.send("updateRSSI", rssi);
+                }
+            }else {
                 //console.log('I heard:', messageString);
             }
             clearTimeout(reconnectTimeout);
@@ -270,17 +278,20 @@ function connectcam() {
 
     wsCamera.on('open', () => {
         console.log('Camera connected');
+        mainWindow.webContents.send('video', 'Camera connected');
         //console.log('WebSocket Camera type:', typeof wsCamera);
     });
 
     wsCamera.on('close', () => {
         if (!onerror) {
             console.log('Camera connection closed');
+            mainWindow.webContents.send('no-video');
         }
     });
 
     wsCamera.on('error', (error) => {
         console.error('WebSocket Camera error during connection:', error);
+        mainWindow.webContents.send('no-video');
     });
 
     // Listen for messages from the camera server
@@ -326,12 +337,40 @@ function connectsound() {
         } else if (messageString === "READY") {
             isReadyForNextPacket = true;
             sendNextPacket(wsSound);
+        } else if (messageString.startsWith('Audio Stack')) {
+            const rateIndex = messageString.indexOf('Reception Rate (kbps):');
+            if (rateIndex !== -1) {
+                const rateString = messageString.substring(rateIndex + 23).trim();
+                receptionRateKbps = parseFloat(rateString);
+                adjustTransmissionAndRecordingRate();
+            }
         }
     });
 }
 
 
 // Audio related functions
+
+function adjustTransmissionAndRecordingRate() {
+    if (receptionRateKbps < 60) {
+        transmissionDelay += ADAPTIVE_DELAY_STEP;
+        recordingSampleRate = Math.max(8000, recordingSampleRate - 1000); // Decrease sample rate
+        console.log(`Increasing delay to ${transmissionDelay} ms and decreasing sample rate to ${recordingSampleRate} Hz`);
+    } else if (receptionRateKbps > 60) {
+        transmissionDelay = Math.max(ADAPTIVE_DELAY_STEP, transmissionDelay - ADAPTIVE_DELAY_STEP);
+        recordingSampleRate = Math.min(44100, recordingSampleRate + 1000); // Increase sample rate
+        console.log(`Decreasing delay to ${transmissionDelay} ms and increasing sample rate to ${recordingSampleRate} Hz`);
+    }
+    // Restart recording with the new sample rate
+    restartRecording();
+}
+
+function restartRecording() {
+    if (isStreaming) {
+        stopStreaming();
+        startStreaming(wsSound);
+    }
+}
 
 function startBufferCheck() {
     if (!bufferCheckInterval) {
