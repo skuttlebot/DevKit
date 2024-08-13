@@ -453,7 +453,7 @@ function sendToneOverWebSocket(wsSound) {
 
 function startStreaming(wsSound) {
     isStreaming = true;
-    audioCapture.startCapture();
+    audioCapture.startCapture(audioOptions.rate);
 
     audioCapture.on('data', (chunk) => {
         audioData = Buffer.concat([audioData, chunk]);
