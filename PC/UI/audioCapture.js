@@ -13,6 +13,7 @@ class AudioCapture extends EventEmitter {
             '-f', 'dshow', // Windows
             '-i', 'audio=Stereo Mix (Realtek(R) Audio)', // Adjust the input device name
             '-ar', sampleRate.toString(), // Sample rate
+            '-ac', '1', // Set to mono
             '-f', 'wav', // Output format
             '-'
         ];
@@ -20,9 +21,9 @@ class AudioCapture extends EventEmitter {
         this.ffmpeg = spawn('ffmpeg', ffmpegCommand);
 
         this.ffmpeg.stdout.on('data', (chunk) => {
-            console.log('Audio chunk received:', chunk.length);
-            this.audioData = Buffer.concat([this.audioData, chunk]); // Ensure audioData is updated correctly
-            this.emit('data', chunk); // Emit the audio chunk event
+            console.log('local Audio chunk received:', chunk.length);
+            this.audioData = Buffer.concat([this.audioData, chunk]);
+            this.emit('data', chunk);
         });
 
         this.ffmpeg.stderr.on('data', (data) => {
@@ -30,7 +31,7 @@ class AudioCapture extends EventEmitter {
         });
 
         this.ffmpeg.on('close', (code) => {
-            console.log(`FFmpeg process exited with code ${code}`);
+            console.log(`FFmpeg process exited with code: ${code}`);
         });
 
         console.log('Audio capture started.');
@@ -38,14 +39,21 @@ class AudioCapture extends EventEmitter {
 
     stopCapture() {
         if (this.ffmpeg) {
+            this.ffmpeg.stdout.removeAllListeners('data');
+            this.ffmpeg.stderr.removeAllListeners('data');
+            this.ffmpeg.removeAllListeners('close');
             this.ffmpeg.kill();
             console.log('Audio capture stopped.');
+            this.ffmpeg = null;
         }
     }
 
-    getAudioData() { // Corrected method name to follow camelCase convention
+    getAudioData() { 
         return this.audioData;
     }
 }
 
+
 module.exports = AudioCapture;
+
+

@@ -28,7 +28,7 @@ const audioOptions = {
     program: process.platform === 'win32' ? 'sox' : 'arecord',
     device: null,
     bits: 16,
-    channels: 2,
+    channels: 1, //mono
     rate: 16000,
     type: 'wav',
 };
@@ -311,7 +311,7 @@ function connectsound() {
 
     wsSound.on('open', () => {
         console.log('Audio connected');
-        //console.log('WebSocket Camera type:', typeof wsCamera);
+        bufferCheckInterval = setInterval(checkBufferSize, 500);//starts checking the audio buffer 
     });
 
     wsSound.on('close', () => {
@@ -328,22 +328,25 @@ function connectsound() {
     wsSound.on('message', (message) => {
         mainWindow.webContents.send('triggerRX');
         const messageString = message.toString();
-        if (messageString === "PAUSE") {
+
+        if (messageString === "PAUSE") {//recived a pause command from device
             isSoundPaused = true;
-            console.log("Audio streaming paused by server.");
+            console.log("Audio streaming paused by device.");//recieved a resume from device
         } else if (messageString === "RESUME") {
             isSoundPaused = false;
+            //isReadyForNextPacket = true;
             console.log("Audio streaming resumed by server.");
+            sendNextPacket(wsSound);
         } else if (messageString === "READY") {
-            isReadyForNextPacket = true;
+            //isReadyForNextPacket = true;
             sendNextPacket(wsSound);
         } else if (messageString.startsWith('Audio Stack')) {
             const rateIndex = messageString.indexOf('Reception Rate (kbps):');
-            if (rateIndex !== -1) {
+            /*if (rateIndex !== -1) {
                 const rateString = messageString.substring(rateIndex + 23).trim();
                 receptionRateKbps = parseFloat(rateString);
                 adjustTransmissionAndRecordingRate();
-            }
+            }*/
         }
     });
 }
@@ -372,52 +375,41 @@ function restartRecording() {
     }
 }
 
-function startBufferCheck() {
-    if (!bufferCheckInterval) {
-        bufferCheckInterval = setInterval(checkBufferSize, 500); // Check buffer size every 1/2 second
-    }
-}
+
 
 function checkBufferSize() {
-    if (audioData.length > 0) {
-        const percentage = (audioData.length / MAX_AUDIO_BUFFER_SIZE) * 100;
-        mainWindow.webContents.send('updateFuelGauge', percentage);
-        console.log(`Audio buffer size: ${audioData.length} (${percentage.toFixed(2)}%)`);
-    } else {
-        clearInterval(bufferCheckInterval);
-        bufferCheckInterval = null;
-        isPlaying = false;
-    }
+    const percentage = (audioData.length / MAX_AUDIO_BUFFER_SIZE) * 100;
+    mainWindow.webContents.send('updateFuelGauge', percentage);
+    console.log(`Audio buffer size: ${audioData.length} (${percentage.toFixed(2)}%)`);
 }
 
+
 function sendNextPacket(wsSound) {
-    if (!isPlaying) {
-        startBufferCheck();
-        isPlaying = true;
-    }
-    if (isSoundPaused || !isReadyForNextPacket || (isStreaming && audioData.length < MAX_PACKET_SIZE)) {
+    //isSoundPaused || !isReadyForNextPacket || 
+    if ((isStreaming && audioData.length < MAX_PACKET_SIZE)) {//wait if we are paused, not ready, or have a incomplete packet while streaming
         setTimeout(() => sendNextPacket(wsSound), 50);
         console.log('Waiting ...');
         return;
     }
-    if (audioData.length >= MAX_PACKET_SIZE) {
+    //we know we are ready, not paused, and eitther not streaming or have a data packet that is big enough
+    if (audioData.length >= MAX_PACKET_SIZE) {//sends a packet if the buffer is big enough
         const packet = Buffer.from(audioData.subarray(0, MAX_PACKET_SIZE));
         audioData = Buffer.from(audioData.subarray(MAX_PACKET_SIZE));
         wsSound.send(packet);
-        isReadyForNextPacket = false;
-        //console.log(`Audio data packet sent, size: ${packet.length}`);
+        //isReadyForNextPacket = false;//remains false until device says it is ready
         mainWindow.webContents.send('triggerTX');
-    } else if (audioData.length > 0) {
+    } else if (audioData.length > 0) {// this is only when we are not streaming with a impartial buffer
         const packet = audioData;
-        audioData = Buffer.alloc(0);
+        audioData = Buffer.alloc(0);//this should fill up the rest of the buffer with zeros
         wsSound.send(packet);
-        isReadyForNextPacket = false;
+        //isReadyForNextPacket = false;
         //console.log(`Audio data packet sent, size: ${packet.length}`);
         mainWindow.webContents.send('triggerTX');
-    } else {
+    } else if(isPlaying){//this is empty case, and if we are in playing mode turn off isplaying&send eoa;
         wsSound.send("EOA");
         console.log('End of audio data sent.');
-        isReadyForNextPacket = true;
+        //isReadyForNextPacket = true;
+        isPlaying=false;
         mainWindow.webContents.send('triggerTX');
     }
 }
@@ -441,6 +433,7 @@ function float32ToInt16Buffer(float32Array) {
 }
 
 function sendToneOverWebSocket(wsSound) {
+    isPlaying=true;
     const toneData = generateToneData(); // Default 440Hz for 1 second
     audioData = float32ToInt16Buffer(toneData);
 
@@ -453,6 +446,7 @@ function sendToneOverWebSocket(wsSound) {
 
 function startStreaming(wsSound) {
     isStreaming = true;
+    isPlaying=true;
     audioCapture.startCapture(audioOptions.rate);
 
     audioCapture.on('data', (chunk) => {

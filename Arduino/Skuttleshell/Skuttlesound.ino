@@ -38,7 +38,7 @@ void Skuttlesound::begin() {
       .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
       .sample_rate = SAMPLE_RATE, // Use defined constant
       .bits_per_sample = BITS_PER_SAMPLE, // Use defined constant
-      .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
+      .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
       .dma_buf_count = 8,//was 8
@@ -98,7 +98,7 @@ void Skuttlesound::audioTask(void *pvParameters) {
       // Since play is now a static function, pass the instance to it
       //play(soundInstance);
       soundInstance->processAudio();
-      vTaskDelay(pdMS_TO_TICKS(1)); // Adjust the delay as needed for your application 
+      vTaskDelay(pdMS_TO_TICKS(10)); // Adjust the delay as needed for your application 
   }
 }
 
@@ -133,7 +133,12 @@ void Skuttlesound::processAudio() { // Sends to the i2s for playback
             availableAudio -= bytesToWrite;
            
             if (ENDAUDIO && availableAudio <= 0) {
-                ENDAUDIO = false;
+              ENDAUDIO = false;
+              writeIndex = 0;
+              readIndex = 0;
+              availableAudio = 0;
+              memset(circularBuffer, 0, CIRCULAR_BUFFER_SIZE); // Clear the buffer
+              Serial.println("Buffer cleared and indices reset.");
             }
         }
         xSemaphoreGive(bufferMutex);
@@ -164,7 +169,7 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
         paused=false;
         wsSound.textAll("RESUME");
         Serial.println("Buffer has space, sent RESUME command to client.");
-        wsSound.textAll("READY");
+        //wsSound.textAll("READY");
         //Serial.println("Ready");   
 
     }else if(!paused&&(bufferUsage>=.8)){
@@ -184,7 +189,7 @@ void Skuttlesound::audioReport(void *pvParameters) {
         UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(instance->audioTaskHandle);
         float usedStackPercentage = 100.0 - ((float)stackHighWaterMark / audioStackSize) * 100;
         String command = "Audio Stack(%): " + String(usedStackPercentage, 2)+
-         ", Reception Rate (bps): " + String(instance->receptionRate, 2);;
+         ", Reception Rate (kbps): " + String(instance->receptionRate, 2);;
         Serial.println(command);
         wsCommand.textAll(command);
         vTaskDelay(pdMS_TO_TICKS(3000));
