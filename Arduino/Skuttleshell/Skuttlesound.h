@@ -9,6 +9,7 @@ private:
     SemaphoreHandle_t bufferMutex;
     size_t receivedDataSize = 0;  // Total size of data received in the current interval
     float receptionRate = 0;      // Data reception rate (bytes per second)
+    float bufferUsage = 0.0;
 
 public:
   Skuttlesound();

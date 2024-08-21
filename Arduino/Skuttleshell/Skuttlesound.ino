@@ -20,8 +20,6 @@ const int audioStackSize=16384;
 bool paused = false;
 extern bool ENDAUDIO;
 
-
-
 Skuttlesound::Skuttlesound() {}
 
 void Skuttlesound::begin() {
@@ -96,15 +94,14 @@ void Skuttlesound::audioTask(void *pvParameters) {
   Skuttlesound* soundInstance = static_cast<Skuttlesound*>(pvParameters);
   for (;;) {
       // Since play is now a static function, pass the instance to it
-      //play(soundInstance);
       soundInstance->processAudio();
       vTaskDelay(pdMS_TO_TICKS(10)); // Adjust the delay as needed for your application 
   }
 }
 
-void Skuttlesound::processAudio() { // Sends to the i2s for playback
+void Skuttlesound::processAudio() { // Sends to the i2s for playback called by audiotask
     if (xSemaphoreTake(bufferMutex, portMAX_DELAY)) {
-        if (availableAudio >= I2S_BUFFER_SIZE || (ENDAUDIO && availableAudio > 0)) {
+        if (availableAudio >= I2S_BUFFER_SIZE || (ENDAUDIO && availableAudio > 0)) {//if we have a full packet, or we have a smaller packet but are in endaudiomode
             size_t bytesToWrite = min(static_cast<size_t>(I2S_BUFFER_SIZE), availableAudio);
             size_t endIndex = (readIndex + bytesToWrite) % CIRCULAR_BUFFER_SIZE;
             size_t bytes_written = 0;
@@ -132,11 +129,12 @@ void Skuttlesound::processAudio() { // Sends to the i2s for playback
             readIndex = endIndex;
             availableAudio -= bytesToWrite;
            
-            if (ENDAUDIO && availableAudio <= 0) {
-              ENDAUDIO = false;
+            if (ENDAUDIO && availableAudio <= 0) {//we have exhaused the buffer
+              //ENDAUDIO = false;
               writeIndex = 0;
               readIndex = 0;
               availableAudio = 0;
+              bufferUsage=0;
               memset(circularBuffer, 0, CIRCULAR_BUFFER_SIZE); // Clear the buffer
               Serial.println("Buffer cleared and indices reset.");
             }
@@ -159,12 +157,12 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
         break;
       }
     }
-    if(!ENDAUDIO){ // if there has been no indicator of end of data
+   if(!ENDAUDIO){ // if there has been no indicator of end of data
       wsSound.textAll("READY");
       //Serial.println("Ready");     
-    }  
+    } 
 
-    float bufferUsage = (float)availableAudio / CIRCULAR_BUFFER_SIZE;
+    bufferUsage = (float)availableAudio / CIRCULAR_BUFFER_SIZE;
     if(paused&&(bufferUsage<=.5)){
         paused=false;
         wsSound.textAll("RESUME");
@@ -189,7 +187,7 @@ void Skuttlesound::audioReport(void *pvParameters) {
         UBaseType_t stackHighWaterMark = uxTaskGetStackHighWaterMark(instance->audioTaskHandle);
         float usedStackPercentage = 100.0 - ((float)stackHighWaterMark / audioStackSize) * 100;
         String command = "Audio Stack(%): " + String(usedStackPercentage, 2)+
-         ", Reception Rate (kbps): " + String(instance->receptionRate, 2);;
+         ", Reception Rate (kbps): " + String(instance->receptionRate, 2) +", Device Buffer Usage(%): " + String(instance->bufferUsage * 100, 2);
         Serial.println(command);
         wsCommand.textAll(command);
         vTaskDelay(pdMS_TO_TICKS(3000));

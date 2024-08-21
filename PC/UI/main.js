@@ -19,7 +19,6 @@ let isSoundPaused = false;
 let isReadyForNextPacket = true;
 let bufferCheckInterval;
 let mainWindow;
-let isPlaying = false;
 let transmissionDelay = 50; // Initial delay in ms
 const ADAPTIVE_DELAY_STEP = 10; // Step for adaptive delay adjustment
 let receptionRateKbps = 60; // Initial reception rate in kbps (from your observation)
@@ -334,11 +333,11 @@ function connectsound() {
             console.log("Audio streaming paused by device.");//recieved a resume from device
         } else if (messageString === "RESUME") {
             isSoundPaused = false;
-            //isReadyForNextPacket = true;
+            isReadyForNextPacket = true;
             console.log("Audio streaming resumed by server.");
             sendNextPacket(wsSound);
         } else if (messageString === "READY") {
-            //isReadyForNextPacket = true;
+            isReadyForNextPacket = true;
             sendNextPacket(wsSound);
         } else if (messageString.startsWith('Audio Stack')) {
             const rateIndex = messageString.indexOf('Reception Rate (kbps):');
@@ -385,8 +384,9 @@ function checkBufferSize() {
 
 
 function sendNextPacket(wsSound) {
-    //isSoundPaused || !isReadyForNextPacket || 
-    if ((isStreaming && audioData.length < MAX_PACKET_SIZE)) {//wait if we are paused, not ready, or have a incomplete packet while streaming
+    // 
+    isPlaying=true;
+    if (isSoundPaused || !isReadyForNextPacket ||(isStreaming && audioData.length < MAX_PACKET_SIZE)) {//wait if we are paused, not ready, or have a incomplete packet while streaming
         setTimeout(() => sendNextPacket(wsSound), 50);
         console.log('Waiting ...');
         return;
@@ -396,19 +396,19 @@ function sendNextPacket(wsSound) {
         const packet = Buffer.from(audioData.subarray(0, MAX_PACKET_SIZE));
         audioData = Buffer.from(audioData.subarray(MAX_PACKET_SIZE));
         wsSound.send(packet);
-        //isReadyForNextPacket = false;//remains false until device says it is ready
+        isReadyForNextPacket = false;//remains false until device says it is ready
         mainWindow.webContents.send('triggerTX');
     } else if (audioData.length > 0) {// this is only when we are not streaming with a impartial buffer
         const packet = audioData;
         audioData = Buffer.alloc(0);//this should fill up the rest of the buffer with zeros
         wsSound.send(packet);
-        //isReadyForNextPacket = false;
+        isReadyForNextPacket = false;
         //console.log(`Audio data packet sent, size: ${packet.length}`);
         mainWindow.webContents.send('triggerTX');
-    } else if(isPlaying){//this is empty case, and if we are in playing mode turn off isplaying&send eoa;
+    } else if (isPlaying) { //this is empty case, and if we are in playing mode turn off isplaying&send eoa; need to check isplaying?
         wsSound.send("EOA");
         console.log('End of audio data sent.');
-        //isReadyForNextPacket = true;
+        isReadyForNextPacket = true;
         isPlaying=false;
         mainWindow.webContents.send('triggerTX');
     }
@@ -433,7 +433,7 @@ function float32ToInt16Buffer(float32Array) {
 }
 
 function sendToneOverWebSocket(wsSound) {
-    isPlaying=true;
+    
     const toneData = generateToneData(); // Default 440Hz for 1 second
     audioData = float32ToInt16Buffer(toneData);
 
@@ -446,7 +446,7 @@ function sendToneOverWebSocket(wsSound) {
 
 function startStreaming(wsSound) {
     isStreaming = true;
-    isPlaying=true;
+    
     audioCapture.startCapture(audioOptions.rate);
 
     audioCapture.on('data', (chunk) => {
