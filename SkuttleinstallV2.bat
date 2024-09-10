@@ -4,7 +4,7 @@ setlocal
 
 :: Check if script is running from an undesirable system directory
 echo %CD% | findstr /C:"System32" >nul
-if not %errorlevel% neq 0 (
+if not %errorlevel% equ 0 (
     echo This script should not be run from the System32 directory. Please run it from a different directory.
     pause
     exit /b 1
