@@ -159,7 +159,7 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
     }
    if(!ENDAUDIO){ // if there has been no indicator of end of data
       wsSound.textAll("READY");
-      //Serial.println("Ready");     
+      Serial.println("Ready");     
     } 
 
     bufferUsage = (float)availableAudio / CIRCULAR_BUFFER_SIZE;

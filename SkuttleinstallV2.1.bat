@@ -4,7 +4,7 @@ setlocal
 
 :: Check if script is running from an undesirable system directory
 echo %CD% | findstr /C:"System32" >nul
-if not %errorlevel% neq 0 (
+if not %errorlevel% equ 0 (
     echo This script should not be run from the System32 directory. Please run it from a different directory.
     pause
     exit /b 1
@@ -55,34 +55,22 @@ if %errorlevel% neq 0 (
 echo nvm OK
 pause
 
-:: Check if Node.js is installed and update to a stable version
+:: Check if Node.js is installed
 echo Checking Node.js
-nvm on
-nvm list >nul 2>&1
+node -v >nul 2>&1
 if %errorlevel% neq 0 (
     echo Node.js is not installed. Installing Node.js...
-    nvm install 18.17.0
+    powershell -Command "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v18.17.0/node-v18.17.0-x64.msi' -OutFile 'nodejs.msi'"
+    msiexec /i nodejs.msi /quiet /norestart
     if %errorlevel% neq 0 (
         echo Node.js installation failed.
         pause
         exit /b 1
     )
-    nvm use 18.17.0
+    del nodejs.msi
     echo Node.js installation complete.
 ) else (
-    echo Node.js is already installed. Switching to the stable version...
-    nvm install 18.17.0
-    if %errorlevel% neq 0 (
-        echo Node.js update failed.
-        pause
-        exit /b 1
-    )
-    nvm use 18.17.0
-    if %errorlevel% neq 0 (
-        echo Node.js activation failed.
-        pause
-        exit /b 1
-    )
+    echo Node.js is already installed.
 )
 echo Node.js OK
 pause
@@ -131,20 +119,15 @@ if not exist "SkuttlebotDevKit" (
 echo Repository OK
 pause
 
-:: Install dependencies
+:: Install dependencies using PowerShell to avoid environment switching
 echo Installing project dependencies...
-(
-    npm install --loglevel verbose
-) && (
-    echo npm install completed successfully.
-    echo Dependencies installed.
-    echo Setup complete. SkuttlebotDevKit is ready to use.
-    pause
-) || (
+powershell -Command "cd '%cd%'; npm install --loglevel verbose"
+if %errorlevel% neq 0 (
     echo npm install failed with errorlevel %errorlevel%.
     pause
     exit /b 1
 )
+echo npm install completed successfully.
 echo Setup complete. SkuttlebotDevKit is ready to use.
 pause
 
