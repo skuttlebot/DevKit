@@ -4,6 +4,7 @@ node_modules/
 
 # Ignore specific file in Skuttleshell
 Arduino/Skuttleshell/config.h
+SkuttlebotInstallLog.txt
 
 # Ignore typical temporary files that should not be committed
 *.log
