@@ -250,11 +250,9 @@ void onWebSocketEventSound(AsyncWebSocket *server, AsyncWebSocketClient *client,
          Serial.println("WebSocket Sound client disconnected");
          break;
       case WS_EVT_DATA:
-        if (strcmp((char*)data, "EOA") == 0) {
+        if (strcmp((char*)data, "EOA") == 0) {//told by PC end of audio data
           ENDAUDIO=true;
-
           Serial.println("EOA");
-          //skuttlesound.handleEndOfAudio();
           break;
         }
         else if (len % 2 != 0) {
