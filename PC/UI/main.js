@@ -462,15 +462,14 @@ function startStreaming(wsSound) {
 }
 
 function stopStreaming() {
-    audioCapture.stopCapture();
     if (audioCapture.ffmpeg) {
-        audioCapture.ffmpeg.kill();
-        audioCapture.ffmpeg = null; // Ensure the process is fully terminated
+        audioCapture.ffmpeg.kill('SIGKILL'); // Forceful termination to avoid lingering
+        audioCapture.ffmpeg = null;
+        console.log('FFmpeg process terminated forcefully.');
     }
     audioCapture.removeAllListeners('data');
-    //audioData = Buffer.alloc(0); // Clear buffer to remove residual data
     isStreaming = false;
-    console.log('Audio streaming stopped and buffer cleared.');
+    console.log('Audio streaming stopped.');
 }
 
 
