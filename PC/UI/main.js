@@ -54,7 +54,7 @@ let isConnectedCommand = false;
 ipcMain.on('r2m', (event, command) => {
     //const DATA =`command,${command.commandString}`;
     const commandData = `command,${command.commandString}`;
-    //console.log("sent to Skuttlemove: ", commandData);
+    console.log("sent to Skuttlemove: ", commandData);
     if (isConnectedCommand) {
         wsCommand.send(commandData);
         mainWindow.webContents.send('triggerTX');
@@ -188,11 +188,13 @@ function connectCommand() {
             //reconnectTimeout = setTimeout(connectCommand, reconnectInterval);
         });
 
-        wsCommand.on('message', (message) => {
-            mainWindow.webContents.send('triggerRX');
-            const messageString = message.toString();
+        wsCommand.on('message', (message) => { const messageString = message.toString();
             console.log(messageString);
+            mainWindow.webContents.send('triggerRX');
+            console.log(" message received:", messageString);
+           
             if (messageString.startsWith('handshake,')) {
+                //console.log("Handshake message received:", messageString);
                 const [, MODULE, ID] = messageString.split(',');
                 console.log('Received handshake from Skuttlemove');
                 console.log('MODULE:', MODULE);
@@ -310,12 +312,18 @@ function connectsound() {
 
     wsSound.on('open', () => {
         console.log('Audio connected');
-        bufferCheckInterval = setInterval(checkBufferSize, 500);//starts checking the audio buffer 
+        if (!bufferCheckInterval) {
+            bufferCheckInterval = setInterval(checkBufferSize, 2000); // Ensure only one interval
+        } 
     });
 
     wsSound.on('close', () => {
         if (!onerror) {
             console.log('Audio connection closed');
+            if (bufferCheckInterval) {
+                clearInterval(bufferCheckInterval); // Clear the interval
+                bufferCheckInterval = null; // Reset the interval variable
+            }
         }
     });
 

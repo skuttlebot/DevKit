@@ -12,6 +12,7 @@ public:
     void begin();
     void setupMDNS(const char* hostname); // Method to set up mDNS
     void setupOTA();
+    void handshake();
 private:
   AsyncWebServer APserver; 
     void _connectToWiFi(); // Private method to handle WiFi connection logic
