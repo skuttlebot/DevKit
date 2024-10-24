@@ -136,7 +136,7 @@ void onWebSocketEventCommand(AsyncWebSocket *server, AsyncWebSocketClient *clien
       command = String((char*) data, len);
       index = command.indexOf(',');
       identifier = command.substring(0, index);
-      Serial.printf("Data received: %s\n", command.c_str()); //("+");
+      //Serial.printf("Data received: %s\n", command.c_str()); //("+");
       if (identifier.equals("command"))
       {
         // Skip the identifier and read the rest of the data

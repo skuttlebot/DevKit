@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <ESPAsync_WiFiManager.h>
 //#include <functional>
+extern AsyncWebSocket wsCommand;
 
 class SkuttleWIFI {
 public:
