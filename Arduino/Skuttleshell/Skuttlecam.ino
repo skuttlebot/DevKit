@@ -30,7 +30,7 @@ void Skuttlecam::camTask(void *pvParameters) {
         while (true){
           AsyncWebSocketClient * clientPointer = wsCamera.client(cameraClientId);
           if (!wsCamera.client(cameraClientId)->queueIsFull()) {break;}//if there is a client and the queue isnt full
-          //Serial.print("+");
+          Serial.print("+");
           if (millis() - startTime > 5000){
             Serial.println("WebSocket message delivery timeout");
             break;
@@ -76,20 +76,7 @@ void Skuttlecam::on() {
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 25;  //higher is lower quality
   config.fb_count = 1;
-  esp_camera_fb_return(fb);
-
-  // Initialize the camera
-  Serial.println("Starting init");
-  esp_err_t err = esp_camera_init(&config);
-  Serial.println("finished init");
-  //delay(2000);
-  if (err != ESP_OK) {
-    Serial.printf("Camera initialization failed with error 0x%x", err);
-    return;
-  } else {
-      Serial.println("Camera initialized");
-      CAMINIT=true;
-  }
+  //fesp_camera_fb_return(fb);
 
   if(psramFound()){
     Serial.println("PSRAM Found!!!");
@@ -102,6 +89,19 @@ void Skuttlecam::on() {
     config.fb_location = CAMERA_FB_IN_DRAM;
     delay(100);
   }
+    // Initialize the camera
+  Serial.println("Starting init");
+  esp_err_t err = esp_camera_init(&config);
+  Serial.println("finished init");
+  //delay(2000);
+  if (err != ESP_OK) {
+    Serial.printf("Camera initialization failed with error 0x%x", err);
+    return;
+  } else {
+      Serial.println("Camera initialized");
+      CAMINIT=true;
+  }
+
    xTaskCreatePinnedToCore(
     camTask,          //task function
     "CameraTask",     //task name
