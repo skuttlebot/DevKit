@@ -157,7 +157,7 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
         break;
       }
     }
-   if(!ENDAUDIO){ // if there has been no indicator of end of data
+   if(!ENDAUDIO & !paused){ // if there has been no indicator of end of data
       wsSound.textAll("READY");
       Serial.println("Ready");     
     } 
@@ -167,13 +167,13 @@ void Skuttlesound::addToBuffer(const uint8_t* data, size_t len) {
         paused=false;
         wsSound.textAll("RESUME");
         Serial.println("Buffer has space, sent RESUME command to client.");
-        //wsSound.textAll("READY");
-        //Serial.println("Ready");   
+        wsSound.textAll("READY");
+        Serial.println("Ready");   
 
     }else if(!paused&&(bufferUsage>=.8)){
         paused=true;            
         wsSound.textAll("PAUSE");
-        Serial.println("Buffer nearing capacity.");
+        Serial.println("Buffer nearing capacity, pausing");
     }
     xSemaphoreGive(bufferMutex); // Give the mutex
   }
