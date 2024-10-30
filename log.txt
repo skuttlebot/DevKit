@@ -1,0 +1,40 @@
+Starting app at Tue 10/29/2024 18:19:04.62 
+Starting npm... 
+
+> skuttlecommand@1.0.0 start
+> concurrently "npm run start-server" "npm run start-electron"
+
+[0] 
+[0] > skuttlecommand@1.0.0 start-server
+[0] > node PC/Server/server.js
+[0] 
+[1] 
+[1] > skuttlecommand@1.0.0 start-electron
+[1] > electron PC/UI/main.js
+[1] 
+[1] 'electron' is not recognized as an internal or external command,
+[1] operable program or batch file.
+[0] node:internal/modules/cjs/loader:1143
+[0]   throw err;
+[0]   ^
+[0] 
+[0] Error: Cannot find module 'express'
+[0] Require stack:
+[0] - C:\AI SourceCode\DevKit\PC\Server\server.js
+[0]     at Module._resolveFilename (node:internal/modules/cjs/loader:1140:15)
+[0]     at Module._load (node:internal/modules/cjs/loader:981:27)
+[0]     at Module.require (node:internal/modules/cjs/loader:1231:19)
+[0]     at require (node:internal/modules/helpers:177:18)
+[0]     at Object.<anonymous> (C:\AI SourceCode\DevKit\PC\Server\server.js:2:17)
+[0]     at Module._compile (node:internal/modules/cjs/loader:1364:14)
+[0]     at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+[0]     at Module.load (node:internal/modules/cjs/loader:1203:32)
+[0]     at Module._load (node:internal/modules/cjs/loader:1019:12)
+[0]     at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:128:12) {
+[0]   code: 'MODULE_NOT_FOUND',
+[0]   requireStack: [ 'C:\\AI SourceCode\\DevKit\\PC\\Server\\server.js' ]
+[0] }
+[0] 
+[0] Node.js v18.20.4
+[1] npm run start-electron exited with code 1
+[0] npm run start-server exited with code 1
