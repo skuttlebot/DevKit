@@ -15,7 +15,7 @@ const MAX_PACKET_SIZE = 1024;
 const MAX_AUDIO_BUFFER_SIZE = 2097152; // 2 MB
 
 let isStreaming = false;
-let audioData = Buffer.alloc(0);
+let audioData = Buffer.alloc(0); 
 let isSoundPaused = false;
 let isReadyForNextPacket = true;
 let bufferCheckInterval;
