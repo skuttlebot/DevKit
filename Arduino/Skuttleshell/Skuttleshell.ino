@@ -122,7 +122,7 @@ void onWebSocketEventCommand(AsyncWebSocket *server, AsyncWebSocketClient *clien
     case WS_EVT_CONNECT:
       Serial.println("WebSocket Command client connected");
       clientCommand = client;
-      handshake();
+      skuttleWIFI.handshake();
       break;
     case WS_EVT_DISCONNECT:
       Serial.println("WebSocket Command client disconnected");

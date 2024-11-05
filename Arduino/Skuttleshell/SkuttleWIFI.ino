@@ -248,7 +248,7 @@ void flasherTask(void*parameter){
   }  
 }
 
-void handshake()
+void SkuttleWIFI::handshake()
 {
 	String msg = String("handshake,") + MODULE + "," + ID;
 	//Serial.println(msg);

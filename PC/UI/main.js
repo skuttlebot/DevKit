@@ -3,8 +3,9 @@ console.log('main program running');
 const path = require('path');
 const WebSocket = require('ws');
 const AudioRecorder = require('node-audiorecorder');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app,  ipcMain } = require('electron');
 const AudioCapture = require('./audioCapture');
+const { createWindow, getMainWindow } = require('./windowManager'); // Correct import
 const ID = 'ROSHIE';
 const SN = '001';
 const DroneName = 'ANY';
@@ -18,7 +19,7 @@ let audioData = Buffer.alloc(0);
 let isSoundPaused = false;
 let isReadyForNextPacket = true;
 let bufferCheckInterval;
-let mainWindow;
+
 let transmissionDelay = 50; // Initial delay in ms
 const ADAPTIVE_DELAY_STEP = 10; // Step for adaptive delay adjustment
 let receptionRateKbps = 60; // Initial reception rate in kbps (from your observation)
@@ -54,10 +55,10 @@ let isConnectedCommand = false;
 ipcMain.on('r2m', (event, command) => {
     //const DATA =`command,${command.commandString}`;
     const commandData = `command,${command.commandString}`;
-    //console.log("sent to Skuttlemove: ", commandData);
+    console.log("sent to Skuttlemove: ", commandData);
     if (isConnectedCommand) {
         wsCommand.send(commandData);
-        mainWindow.webContents.send('triggerTX');
+        getMainWindow().webContents.send('triggerTX');
     }
 });
 
@@ -82,7 +83,7 @@ app.whenReady().then(() => {
 });
 
 app.on('activate', () => {
-    if (mainWindow === null) {
+    if (getMainWindow() === null) {
         createWindow();
     }
 });
@@ -93,8 +94,8 @@ app.on('window-all-closed', () => {
     }
 });
 
-function createWindow() {
-    mainWindow = new BrowserWindow({
+/*function createWindow() {
+    getMainWindow() = new BrowserWindow({
         width: 800,
         height: 600,
         webPreferences: {
@@ -110,17 +111,17 @@ function createWindow() {
             },
         }
     });
-    mainWindow.loadFile('index.html');
-    mainWindow.on('closed', () => {
-        mainWindow = null;
+    getMainWindow().loadFile('index.html');
+    getMainWindow().on('closed', () => {
+        getMainWindow() = null;
     });
-}
+}*/
 
 function offline() {
     if (isLonely) {
         console.log('Lost Connection to Command');
         isConnectedCommand = false;
-        mainWindow.webContents.send('status', 'Disconnected');
+        getMainWindow().webContents.send('status', 'Disconnected');
         wsCommand.close();
         clearTimeout(reconnectTimeout);
         switchPortsAndReconnect();
@@ -129,7 +130,7 @@ function offline() {
         console.log('Helloooo, is anybody there?');
         const pingMessage = 'ping';
         wsCommand.send(pingMessage);
-        mainWindow.webContents.send('triggerTX');
+        getMainWindow().webContents.send('triggerTX');
         clearTimeout(reconnectTimeout);
         reconnectTimeout = setTimeout(offline, reconnectInterval);
     }
@@ -140,7 +141,7 @@ function sendHandshake() {
     const handshakeData = `handshake,${ID},${SN}`;
     setTimeout(() => {
         wsCommand.send(handshakeData);
-        mainWindow.webContents.send('triggerTX');
+        getMainWindow().webContents.send('triggerTX');
         console.log(`Sent handshake to Command:`, handshakeData);
     }, 20);
 }
@@ -171,7 +172,7 @@ function connectCommand() {
                 if (isConnectedCommand) {
                     isConnectedCommand = false;
                     isLonely = true;
-                    mainWindow.webContents.send('status', 'Disconnected from Command');
+                    getMainWindow().webContents.send('status', 'Disconnected from Command');
                     clearTimeout(reconnectTimeout);
                     reconnectTimeout = setTimeout(connectCommand, reconnectInterval);
                 }
@@ -188,11 +189,13 @@ function connectCommand() {
             //reconnectTimeout = setTimeout(connectCommand, reconnectInterval);
         });
 
-        wsCommand.on('message', (message) => {
-            mainWindow.webContents.send('triggerRX');
-            const messageString = message.toString();
+        wsCommand.on('message', (message) => { const messageString = message.toString();
             console.log(messageString);
+            getMainWindow().webContents.send('triggerRX');
+            console.log(" message received:", messageString);
+           
             if (messageString.startsWith('handshake,')) {
+                //console.log("Handshake message received:", messageString);
                 const [, MODULE, ID] = messageString.split(',');
                 console.log('Received handshake from Skuttlemove');
                 console.log('MODULE:', MODULE);
@@ -202,7 +205,7 @@ function connectCommand() {
                     isConnectedCommand = true;  //handshake from server received.
                 }
                 console.log("Sending connection status to preload");
-                mainWindow.webContents.send("status", `Connected!!! to ${MODULE}`);
+                getMainWindow().webContents.send("status", `Connected!!! to ${MODULE}`);
             } else if (messageString.startsWith('heartbeat,')) {
                 if (!isConnectedCommand) {
                     const [, MODULE, ID] = messageString.split(',');
@@ -212,7 +215,7 @@ function connectCommand() {
                     sendHandshake();
                     isConnectedCommand = true;  //handshake from server received.
                     console.log("Sending connection status to preload");
-                    mainWindow.webContents.send("status", `Connected!!! to ${MODULE}`);
+                    getMainWindow().webContents.send("status", `Connected!!! to ${MODULE}`);
                 } else { console.log(".");}
             
             } else if (messageString.startsWith('camconnect')) {
@@ -226,7 +229,7 @@ function connectCommand() {
                 const rssiMatch = messageString.match(/RSSI\(dBm\): (-?\d+)/);
                     if (rssiMatch) {
                         const rssi = parseInt(rssiMatch[1]);
-                        mainWindow.webContents.send("updateRSSI", rssi);
+                        getMainWindow().webContents.send("updateRSSI", rssi);
                 }
             }else {
                 //console.log('I heard:', messageString);
@@ -277,29 +280,29 @@ function connectcam() {
 
     wsCamera.on('open', () => {
         console.log('Camera connected');
-        mainWindow.webContents.send('video', 'Camera connected');
+        getMainWindow().webContents.send('video', 'Camera connected');
         //console.log('WebSocket Camera type:', typeof wsCamera);
     });
 
     wsCamera.on('close', () => {
         if (!onerror) {
             console.log('Camera connection closed');
-            mainWindow.webContents.send('no-video');
+            getMainWindow().webContents.send('no-video');
         }
     });
 
     wsCamera.on('error', (error) => {
         console.error('WebSocket Camera error during connection:', error);
-        mainWindow.webContents.send('no-video');
+        getMainWindow().webContents.send('no-video');
     });
 
     // Listen for messages from the camera server
     wsCamera.on('message', (data) => {
-        mainWindow.webContents.send('triggerRX');
+        getMainWindow().webContents.send('triggerRX');
         // Assuming 'data' is binary video data received on wsCamera
         //console.log('+');
-        if (mainWindow) {
-            mainWindow.webContents.send('video', data);
+        if (getMainWindow()) {
+            getMainWindow().webContents.send('video', data);
         }
     });
 }
@@ -310,12 +313,18 @@ function connectsound() {
 
     wsSound.on('open', () => {
         console.log('Audio connected');
-        bufferCheckInterval = setInterval(checkBufferSize, 500);//starts checking the audio buffer 
+        if (!bufferCheckInterval) {
+            bufferCheckInterval = setInterval(checkBufferSize, 2000); // Ensure only one interval
+        } 
     });
 
     wsSound.on('close', () => {
         if (!onerror) {
             console.log('Audio connection closed');
+            if (bufferCheckInterval) {
+                clearInterval(bufferCheckInterval); // Clear the interval
+                bufferCheckInterval = null; // Reset the interval variable
+            }
         }
     });
 
@@ -325,7 +334,7 @@ function connectsound() {
 
     // Listen for messages from the audio server
     wsSound.on('message', (message) => {
-        mainWindow.webContents.send('triggerRX');
+        getMainWindow().webContents.send('triggerRX');
         const messageString = message.toString();
 
         if (messageString === "PAUSE") {//recived a pause command from device
@@ -378,7 +387,7 @@ function restartRecording() {
 
 function checkBufferSize() {
     const percentage = (audioData.length / MAX_AUDIO_BUFFER_SIZE) * 100;
-    mainWindow.webContents.send('updateFuelGauge', percentage);
+    getMainWindow().webContents.send('updateFuelGauge', percentage);
     console.log(`Audio buffer size: ${audioData.length} (${percentage.toFixed(2)}%)`);
 }
 
@@ -397,20 +406,20 @@ function sendNextPacket(wsSound) {
         audioData = Buffer.from(audioData.subarray(MAX_PACKET_SIZE));
         wsSound.send(packet);
         isReadyForNextPacket = false;//remains false until device says it is ready
-        mainWindow.webContents.send('triggerTX');
+        getMainWindow().webContents.send('triggerTX');
     } else if (audioData.length > 0) {// this is only when we are not streaming with a impartial buffer
         const packet = audioData;
         audioData = Buffer.alloc(0);//this should fill up the rest of the buffer with zeros
         wsSound.send(packet);
         isReadyForNextPacket = false;
         //console.log(`Audio data packet sent, size: ${packet.length}`);
-        mainWindow.webContents.send('triggerTX');
+        getMainWindow().webContents.send('triggerTX');
     } else if (isPlaying) { //this is empty case, and if we are in playing mode turn off isplaying&send eoa; need to check isplaying?
         wsSound.send("EOA");
         console.log('End of audio data sent.');
         isReadyForNextPacket = true;
         isPlaying=false;
-        mainWindow.webContents.send('triggerTX');
+        getMainWindow().webContents.send('triggerTX');
     }
 }
 
