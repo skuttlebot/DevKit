@@ -1,11 +1,12 @@
 // main.js *top level functionality, starts window, sets up websocket, etc
 console.log('main program running');
 const path = require('path');
-const WebSocket = require('ws');
+//const WebSocket = require('ws');
 const AudioRecorder = require('node-audiorecorder');
 const { app,  ipcMain } = require('electron');
 const AudioCapture = require('./audioCapture');
-const { createWindow, getMainWindow } = require('./windowManager'); // Correct import
+const { createWindow, getMainWindow } = require('./windowManager'); 
+const { connectCommand, connectCamera, connectSound, wsCommand, wsCamera, wsSound } = require('./websocketManager');
 const ID = 'ROSHIE';
 const SN = '001';
 const DroneName = 'ANY';
@@ -35,7 +36,7 @@ const audioOptions = {
 const audioRecorder = new AudioRecorder(audioOptions);
 const audioCapture = new AudioCapture();
 
-let reconnectTimeout;
+/*let reconnectTimeout;
 let wsCamera; // WebSocket instance for camera
 let wsCommand; // WebSocket instance for Command
 let wsSound; //Websocket instance for audio
@@ -49,9 +50,10 @@ let currentPort = PRIMARY_PORT; // Start with primary port
 let primaryServerCheckInterval;
 
 let cameraWindowCreated = false;
-let isConnectedCommand = false;
+let isConnectedCommand = false;*/
 
 //IPC communication with renderer process (renderer.js)
+
 ipcMain.on('r2m', (event, command) => {
     //const DATA =`command,${command.commandString}`;
     const commandData = `command,${command.commandString}`;
@@ -80,6 +82,7 @@ ipcMain.on('streamToggle', () => {
 
 app.whenReady().then(() => {
     createWindow();
+    connectCommand();
 });
 
 app.on('activate', () => {
@@ -94,28 +97,6 @@ app.on('window-all-closed', () => {
     }
 });
 
-/*function createWindow() {
-    getMainWindow() = new BrowserWindow({
-        width: 800,
-        height: 600,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js'),
-            webSecurity: false, // Adjust this as needed
-            allowRunningInsecureContent: true, // Adjust this as needed
-            //autoplayPolicy: 'user-gesture-required', // Adjust this as needed
-            media: {
-                //    audioCapture: true, // Enable audio capture
-                videoCapture: true, // Enable video capture
-            },
-        }
-    });
-    getMainWindow().loadFile('index.html');
-    getMainWindow().on('closed', () => {
-        getMainWindow() = null;
-    });
-}*/
 
 function offline() {
     if (isLonely) {
@@ -144,11 +125,11 @@ function sendHandshake() {
         getMainWindow().webContents.send('triggerTX');
         console.log(`Sent handshake to Command:`, handshakeData);
     }, 20);
-}
+} 
     
 
     
-// web sockets
+/*// web sockets
 
 function connectCommand() {
     if (isLonely) {
@@ -240,7 +221,7 @@ function connectCommand() {
 
         });
     }
-}
+}*/
 
 function switchPortsAndReconnect() {
     clearTimeout(reconnectTimeout);
@@ -274,7 +255,7 @@ function startPrimaryServerCheck() {
     }, checkFrequency);
 }
 
-function connectcam() {
+/*function connectcam() {
     console.log(`Attempting to connect to Camserver...`);
     wsCamera = new WebSocket(`ws://skuttlehost.local:${PRIMARY_PORT}/Camera`);
 
@@ -305,9 +286,9 @@ function connectcam() {
             getMainWindow().webContents.send('video', data);
         }
     });
-}
+}*/
 
-function connectsound() {
+/*function connectsound() {
     console.log(`Attempting to connect to audio...`);
     wsSound = new WebSocket(`ws://skuttlehost.local:${currentPort}/Sound`);
 
@@ -354,10 +335,10 @@ function connectsound() {
                 const rateString = messageString.substring(rateIndex + 23).trim();
                 receptionRateKbps = parseFloat(rateString);
                 adjustTransmissionAndRecordingRate();
-            }*/
+            }
         }
     });
-}
+}*/
 
 
 // Audio related functions
