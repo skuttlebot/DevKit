@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 // websocketManager.js
 const WebSocket = require('ws');
 const { getMainWindow } = require('./windowManager');
@@ -183,4 +181,3 @@ module.exports = {
     wsCommand,
     wsSound,
 };
->>>>>>> Stashed changes
