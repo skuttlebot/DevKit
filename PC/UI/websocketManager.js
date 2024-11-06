@@ -1,5 +1,6 @@
 // websocketManager.js
 const WebSocket = require('ws');
+
 const { getMainWindow } = require('./windowManager');
 
 let wsCamera;
@@ -181,3 +182,4 @@ module.exports = {
     wsCommand,
     wsSound,
 };
+
