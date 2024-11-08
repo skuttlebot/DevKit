@@ -2,7 +2,7 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 
-let mainWindow;
+let mainWindow = null;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -21,10 +21,16 @@ function createWindow() {
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
-}
-
-function getMainWindow() {
     return mainWindow;
 }
 
-module.exports = { createWindow, mainWindow };
+function getMainWindow() {
+    if (mainWindow) {
+        return mainWindow;
+    } else {
+        console.error("Main window not initialized yet");
+        return null;
+    }
+}
+
+module.exports = { createWindow, getMainWindow };
