@@ -1,137 +1,189 @@
 const WebSocket = require('ws');
-const config = require('./config');
 const { getMainWindow } = require('./windowManager');
-const { offline, switchPortsAndReconnect, sendHandshake } = require('./offline');
 const { handleSoundMessage } = require('./audioManager');
 const { ipcMain } = require('electron');
 
-ipcMain.on('Ready', () => {
-    connectCommand();
-});
+const PRIMARY_PORT = 8080;
+const BACKUP_PORT = 8081;
+let currentPort = PRIMARY_PORT;
+let wsCommand = null;
+let wsSound = null;
+let wsCamera = null;
+let lastMessageTime = Date.now();
+let reconnectTimeout = null;
+const reconnectInterval = 5000;
 
+const state = {
+    isConnectedCommand: false,
+    isLonely: true,
+    isSoundConnected: false,
+    isCameraConnected: false
+};
+
+// Function to connect to the Command WebSocket
 function connectCommand() {
-    if (config.isLonely) {
-        console.log(`Attempting to connect to Command...`);
-        config.wsCommand = new WebSocket(`ws://localhost:${config.currentPort}/Command`);
+    if (wsCommand && wsCommand.readyState === WebSocket.CONNECTING) return;
 
-        config.wsCommand.on('open', () => {
-            console.log(`WebSocket Command connected on port ${config.currentPort}`);
-            config.isLonely = false;
-            config.onerror = false;
-            clearTimeout(config.reconnectTimeout);
-            config.reconnectTimeout = setTimeout(offline, config.reconnectInterval);
-            sendHandshake();
-        });
+    console.log(`Attempting to connect to Command on port ${currentPort}...`);
+    wsCommand = new WebSocket(`ws://skuttlehost.local:${currentPort}/Command`);
 
-        config.wsCommand.on('close', () => {
-            console.log('WebSocket Command connection closed');
-            config.isConnectedCommand = false;
-            config.isLonely = true;
-            getMainWindow().webContents.send('status', 'Disconnected');
-            config.reconnectTimeout = setTimeout(connectCommand, config.reconnectInterval);
-        });
+    wsCommand.on('open', () => {
+        console.log(`Connected to Command on port ${currentPort}`);
+        state.isLonely = false;
+        state.isConnectedCommand = true;
+        lastMessageTime = Date.now();
+        sendHandshake();
+        getMainWindow().webContents.send('status', 'Command Connected');
+        clearTimeout(reconnectTimeout);
 
-        config.wsCommand.on('error', (error) => {
-            console.error('WebSocket Command error:', error);
-            config.isConnectedCommand = false;
-            config.isLonely = true;
-            clearTimeout(config.reconnectTimeout);
-            config.onerror = true;
-            switchPortsAndReconnect(connectCommand);
-        });
+        // Connect to Sound WebSocket after Command is established
+        connectSound();
+    });
 
-        config.wsCommand.on('message', (message) => {
-            const messageString = message.toString();
-            console.log("Command Message received:", messageString);
-            getMainWindow().webContents.send('triggerRX');
+    wsCommand.on('message', (message) => {
+        const messageString = typeof message === 'string' ? message : message.toString();
+        console.log(`Command Message received: ${messageString}`);
+        lastMessageTime = Date.now();
+        getMainWindow().webContents.send('triggerRX');
 
-            if (messageString.startsWith('handshake,')) {
-                if (!config.isConnectedCommand) {
-                    sendHandshake();
-                    config.isConnectedCommand = true;
-                }
-                getMainWindow().webContents.send("status", "Connected");
-            } else if (messageString.startsWith('camconnect')) {
-                connectCamera();
-            } else if (messageString.startsWith('camdisconnect')) {
-                disconnectCamera();
-            } else if (messageString.startsWith('soundconnect')) {
-                connectSound();
-            } else if (messageString.startsWith('sounddisconnect')) {
-                disconnectSound();
-            }
-        });
+        if (messageString.startsWith('handshake,')) {
+            state.isConnectedCommand = true;
+            getMainWindow().webContents.send("status", "Connected");
+        } else if (messageString.startsWith('camconnect')) {
+            connectCamera();
+        } else if (messageString.startsWith('camdisconnect')) {
+            disconnectCamera();
+        }
+    });
+
+    wsCommand.on('close', () => {
+        console.log('Command connection closed');
+        state.isConnectedCommand = false;
+        state.isLonely = true;
+
+        // Close Sound and Camera connections if Command is lost
+        disconnectSound();
+        disconnectCamera();
+
+        scheduleReconnect();
+    });
+
+    wsCommand.on('error', (error) => {
+        console.error(`Command error on port ${currentPort}: ${error}`);
+        state.isConnectedCommand = false;
+        state.isLonely = true;
+
+        // Close Sound and Camera connections on error
+        disconnectSound();
+        disconnectCamera();
+
+        scheduleReconnect();
+    });
+}
+
+// Function to send a handshake
+function sendHandshake() {
+    const handshakeData = `handshake,ID,SN`;
+    if (wsCommand && wsCommand.readyState === WebSocket.OPEN) {
+        console.log("Sending handshake...");
+        wsCommand.send(handshakeData);
+        getMainWindow().webContents.send('triggerTX');
     }
 }
 
-function connectCamera() {
-    console.log(`Attempting to connect to Camera...`);
-    config.wsCamera = new WebSocket(`ws://localhost:${config.PRIMARY_PORT}/Camera`);
-
-    config.wsCamera.on('open', () => {
-        console.log('Camera connected');
-        getMainWindow().webContents.send('video', 'Camera connected');
-    });
-
-    config.wsCamera.on('close', () => {
-        console.log('Camera connection closed');
-        config.wsCamera = null;
-        getMainWindow().webContents.send('no-video');
-    });
-
-    config.wsCamera.on('error', (error) => {
-        console.error('WebSocket Camera error:', error);
-    });
-
-    config.wsCamera.on('message', (data) => {
-        getMainWindow().webContents.send('video', data);
-    });
-}
-
+// Function to connect to the Sound WebSocket
 function connectSound() {
-    console.log(`Attempting to connect to Audio...`);
-    config.wsSound = new WebSocket(`ws://localhost:${config.currentPort}/Sound`);
+    if (state.isSoundConnected) return;
 
-    config.wsSound.on('open', () => {
-        console.log('Audio connected');
-        getMainWindow().webContents.send('audio', 'Audio connected');
+    console.log('Attempting to connect to Sound...');
+    wsSound = new WebSocket(`ws://skuttlehost.local:${currentPort}/Sound`);
+
+    wsSound.on('open', () => {
+        console.log('Sound WebSocket connected');
+        state.isSoundConnected = true;
+        getMainWindow().webContents.send('audio', 'Audio Connected');
     });
 
-    config.wsSound.on('close', () => {
-        console.log('Audio connection closed');
-        config.wsSound = null;
+    wsSound.on('message', (message) => {
+        handleSoundMessage(message, wsSound);
+        getMainWindow().webContents.send('triggerRX');
     });
 
-    config.wsSound.on('error', (error) => {
-        console.error('WebSocket Audio error:', error);
+    wsSound.on('close', () => {
+        console.log('Sound connection closed');
+        state.isSoundConnected = false;
     });
 
-    config.wsSound.on('message', (message) => {
-        handleSoundMessage(message, config.wsSound);
+    wsSound.on('error', (error) => {
+        console.error('Sound WebSocket error:', error);
+        state.isSoundConnected = false;
     });
 }
 
-function disconnectCamera() {
-    if (config.wsCamera) {
-        config.wsCamera.close();
-        config.wsCamera = null;
-        console.log('Camera connection closed manually');
-        getMainWindow().webContents.send('no-video');
-    }
-}
-
+// Function to disconnect the Sound WebSocket
 function disconnectSound() {
-    if (config.wsSound) {
-        config.wsSound.close();
-        config.wsSound = null;
+    if (wsSound) {
+        wsSound.close();
         console.log('Sound connection closed manually');
+        state.isSoundConnected = false;
     }
 }
+
+// Function to connect to the Camera WebSocket when requested
+function connectCamera() {
+    if (state.isCameraConnected) return;
+
+    console.log('Attempting to connect to Camera...');
+    wsCamera = new WebSocket(`ws://skuttlehost.local:${currentPort}/Camera`);
+
+    wsCamera.on('open', () => {
+        console.log('Camera WebSocket connected');
+        state.isCameraConnected = true;
+        getMainWindow().webContents.send('video', 'Camera Connected');
+    });
+
+    wsCamera.on('message', (data) => {
+        getMainWindow().webContents.send('video', data);
+        getMainWindow().webContents.send('triggerRX');
+    });
+
+    wsCamera.on('close', () => {
+        console.log('Camera connection closed');
+        state.isCameraConnected = false;
+    });
+
+    wsCamera.on('error', (error) => {
+        console.error('Camera WebSocket error:', error);
+        state.isCameraConnected = false;
+    });
+}
+
+// Function to disconnect the Camera WebSocket
+function disconnectCamera() {
+    if (wsCamera) {
+        wsCamera.close();
+        console.log('Camera connection closed manually');
+        state.isCameraConnected = false;
+    }
+}
+
+// Function to schedule a reconnect attempt
+function scheduleReconnect() {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = setTimeout(() => {
+        currentPort = (currentPort === PRIMARY_PORT) ? BACKUP_PORT : PRIMARY_PORT;
+        console.log(`Switching ports. Now using port: ${currentPort}`);
+        connectCommand();
+    }, reconnectInterval);
+}
+
+connectCommand();
 
 module.exports = {
     connectCommand,
-    connectCamera,
     connectSound,
+    connectCamera,
     disconnectCamera,
     disconnectSound,
+    sendHandshake,
 };
