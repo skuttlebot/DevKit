@@ -4,7 +4,7 @@ const path = require('path');
 const { app, ipcMain } = require('electron');
 const { createWindow, getMainWindow } = require('./windowManager');
 const state = require('./config');
-const { connectCommand, connectCamera, connectSound } = require('./websocketManager');
+const { connectCommand} = require('./websocketManager');
 const { sendToneOverWebSocket, startStreaming, stopStreaming } = require('./audioManager');
 
 // IPC communication with renderer process (renderer.js)
@@ -17,7 +17,7 @@ ipcMain.on('r2m', (event, command) => {
     }
 });
 
-ipcMain.on('Ready', () => {
+ipcMain.once('Ready', () => {
     connectCommand();
 });
 

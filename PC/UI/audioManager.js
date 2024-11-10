@@ -30,6 +30,11 @@ function startStreaming(wsSound) {
 
     console.log('Audio streaming started.');
     sendNextPacket(wsSound);
+
+    // Start buffer size check interval (every 2 seconds)
+    if (!bufferCheckInterval) {
+        bufferCheckInterval = setInterval(checkBufferSize, 2000);
+    }
 }
 
 // Stop streaming and cleanup
@@ -41,13 +46,19 @@ function stopStreaming() {
     }
     audioCapture.removeAllListeners('data');
     state.isStreaming = false;
+
     console.log('Audio streaming stopped.');
+
+    // Stop buffer size check interval
+    if (bufferCheckInterval) {
+        clearInterval(bufferCheckInterval);
+        bufferCheckInterval = null;
+    }
 }
 
 // Append new audio data (from any source) to the buffer
 function appendToBuffer(chunk) {
     audioData = Buffer.concat([audioData, chunk]);
-    checkBufferSize();
 }
 
 // Handle sending audio data over the WebSocket
@@ -104,6 +115,7 @@ function handleSoundMessage(message, wsSound) {
     }
 }
 
+// Check buffer size and update the UI every 2 seconds
 function checkBufferSize() {
     const percentage = (audioData.length / MAX_AUDIO_BUFFER_SIZE) * 100;
     getMainWindow().webContents.send('updateFuelGauge', percentage);
