@@ -1,3 +1,4 @@
+//websocketManager.js
 const WebSocket = require('ws');
 const { getMainWindow } = require('./windowManager');
 const { ipcMain } = require('electron');
@@ -125,24 +126,27 @@ function connectCommand() {
 
 function Heartbeat() {
     clearInterval(heartbeatInterval);
+
+    // Start a new heartbeat interval
     heartbeatInterval = setInterval(() => {
-        // Check if WebSocket is defined and open
         if (wsCommand && wsCommand.readyState === WebSocket.OPEN) {
-            if (!state.isLonely) {
-                console.log("Helloooo, is anybody there?");
-                wsCommand.send('ping');
-                state.isLonely = true; // Assume lonely unless a response is received
+            if (state.isLonely) {
+                // Lonely state persists, no message received during the interval
+                console.log("No response received, assuming lost connection...");
+                clearInterval(heartbeatInterval); // Stop the interval
+                offline(); // Trigger reconnection
             } else {
-                console.log("Lost connection to Command");
-                clearInterval(heartbeatInterval); // Stop the interval on lost connection
-                offline(); // Handle reconnection logic
+                // Send a ping and set state to lonely until a response arrives
+                console.log("Heloooo is anybody there?...");
+                wsCommand.send('ping');
+                state.isLonely = true; // Assume lonely until cleared
             }
         } else {
-            console.log("WebSocket is not open, triggering offline...");
+            console.log("WebSocket not open, triggering offline...");
             clearInterval(heartbeatInterval);
-            offline(); // Handle reconnection logic if the socket is not open
+            offline();
         }
-    }, 5000);
+    }, reconnectInterval);
 }
 
 
@@ -178,30 +182,27 @@ function handleError(error) {
 function handleCommandMessage(message) {
     const messageString = message.toString();
     console.log(`Command Message received: ${messageString}`);
-    getMainWindow().webContents.send('triggerRX');
-    clearInterval(heartbeatInterval);
-    Heartbeat();
-    isLonely = false;
-    // Handle different types of messages
+
+    // Reset lonely state and restart timer
+    state.isLonely = false; // Signal received, not lonely anymore
+    clearInterval(heartbeatInterval); // Clear existing interval
+    Heartbeat(); // Restart the heartbeat
+
+    // Handle specific message types
     if (messageString.startsWith('handshake,')) {
         handleHandshake(messageString);
-        return;
     } else if (messageString.startsWith('heartbeat,')) {
         handleHeartbeat(messageString);
-        return;
     } else if (messageString.startsWith('camconnect')) {
         connectCamera();
-        return;
     } else if (messageString.startsWith('camdisconnect')) {
         disconnectCamera();
-        return;
     } else if (messageString.includes('RSSI(dBm)')) {
         const rssiMatch = messageString.match(/RSSI\(dBm\): (-?\d+)/);
         if (rssiMatch) {
             const rssi = parseInt(rssiMatch[1]);
             getMainWindow().webContents.send("updateRSSI", rssi);
         }
-        return;
     } else {
         console.log('Received unknown message:', messageString);
     }
