@@ -4,9 +4,7 @@
   "description": "Basic core program to issue commands to body",
   "main": "PC/UI/main.js",
   "scripts": {
-    "start": "concurrently \"npm run start-server\" \"npm run start-electron\"",
-    "start-server": "node PC/Server/server.js",
-    "start-electron": "electron PC/UI/main.js"
+    "start": "electron PC/UI/main.js"
   },
   "repository": {
     "type": "git",

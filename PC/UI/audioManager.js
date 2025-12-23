@@ -3,9 +3,16 @@ const { getMainWindow } = require('./windowManager');
 const state = require('./config');
 const AudioCapture = require('./audioCapture');
 
-const MAX_PACKET_SIZE = 1024;
-const MAX_AUDIO_BUFFER_SIZE = 2097152;
-const ADAPTIVE_DELAY_STEP = 10;
+// Audio streaming constants
+const MAX_PACKET_SIZE = 1024;                   // 1KB per WebSocket packet
+const MAX_AUDIO_BUFFER_SIZE = 2 * 1024 * 1024;  // 2MB buffer (2,097,152 bytes)
+const ADAPTIVE_DELAY_STEP = 10;                 // Transmission rate adjustment step in ms
+const BUFFER_CHECK_INTERVAL = 2000;             // Check buffer size every 2 seconds
+const PACKET_RETRY_DELAY = 50;                  // Wait 50ms before retry if buffer not ready
+const DEFAULT_TONE_FREQUENCY = 440;             // A4 note (440 Hz)
+const DEFAULT_TONE_DURATION = 1;                // 1 second
+const AUDIO_SAMPLE_RATE = 16000;                // 16kHz mono audio
+const TARGET_RECEPTION_RATE = 60;               // Target kbps for adaptive streaming
 
 let audioData = Buffer.alloc(0);
 let bufferCheckInterval = null;
@@ -31,9 +38,9 @@ function startStreaming(wsSound) {
     console.log('Audio streaming started.');
     sendNextPacket(wsSound);
 
-    // Start buffer size check interval (every 2 seconds)
+    // Start buffer size check interval
     if (!bufferCheckInterval) {
-        bufferCheckInterval = setInterval(checkBufferSize, 2000);
+        bufferCheckInterval = setInterval(checkBufferSize, BUFFER_CHECK_INTERVAL);
     }
 }
 
@@ -66,7 +73,7 @@ function sendNextPacket(wsSound) {
     state.isPlaying = true;
 
     if (state.isSoundPaused || !state.isReadyForNextPacket || (state.isStreaming && audioData.length < MAX_PACKET_SIZE)) {
-        setTimeout(() => sendNextPacket(wsSound), 50);
+        setTimeout(() => sendNextPacket(wsSound), PACKET_RETRY_DELAY);
         return;
     }
 
@@ -123,22 +130,22 @@ function checkBufferSize() {
 }
 
 function adjustTransmissionRate() {
-    if (state.receptionRateKbps < 60) {
+    if (state.receptionRateKbps < TARGET_RECEPTION_RATE) {
         state.transmissionDelay += ADAPTIVE_DELAY_STEP;
         console.log(`Increased delay to ${state.transmissionDelay} ms.`);
-    } else if (state.receptionRateKbps > 60) {
+    } else if (state.receptionRateKbps > TARGET_RECEPTION_RATE) {
         state.transmissionDelay = Math.max(ADAPTIVE_DELAY_STEP, state.transmissionDelay - ADAPTIVE_DELAY_STEP);
         console.log(`Decreased delay to ${state.transmissionDelay} ms.`);
     }
 }
 
-function sendToneOverWebSocket(wsSound, frequency = 440, duration = 1) {
+function sendToneOverWebSocket(wsSound, frequency = DEFAULT_TONE_FREQUENCY, duration = DEFAULT_TONE_DURATION) {
     const toneData = generateToneData(frequency, duration);
     appendToBuffer(float32ToInt16Buffer(toneData));
     sendNextPacket(wsSound);
 }
 
-function generateToneData(frequency, duration, sampleRate = 16000) {
+function generateToneData(frequency, duration, sampleRate = AUDIO_SAMPLE_RATE) {
     const samples = duration * sampleRate;
     const toneData = new Float32Array(samples);
     for (let i = 0; i < samples; i++) {

@@ -1,11 +1,16 @@
+// UI Constants
+const LED_FLASH_DURATION = 200;        // TX/RX LED flash duration in ms
+const GAMEPAD_POLL_INTERVAL = 500;     // Gamepad polling interval in ms when no native events
+
+// Application state
 const haveEvents = "ongamepadconnected" in window;
 const controllers = {};
-CSOld = 'NULL';
+let CSOld = 'NULL';
 let cameraWindowCreated = false;
 let CAMwin = false;
 let gamepStatusElement;
-
 let Streaming = false;
+let currentVideoURL = null;  // Track current video object URL for cleanup
 
 window.addEventListener('DOMContentLoaded', () => {
     console.log('DOMC loop started');
@@ -31,13 +36,22 @@ window.addEventListener('DOMContentLoaded', () => {
 			const videoData = event.data.message;
 			if (videoData) {
 			  if (typeof videoData === 'string' && videoData.startsWith('http')) {
+				// Clean up previous object URL if it exists
+				if (currentVideoURL) {
+					URL.revokeObjectURL(currentVideoURL);
+					currentVideoURL = null;
+				}
 				cameraFeed.src = videoData;
 				cameraFeed.style.display = 'block';
 				placeholderImage.style.display = 'none';
 			  } else if (videoData instanceof Uint8Array) {
+				// Clean up previous object URL before creating new one
+				if (currentVideoURL) {
+					URL.revokeObjectURL(currentVideoURL);
+				}
 				const blob = new Blob([videoData], { type: 'video/mp4' });
-				const videoURL = URL.createObjectURL(blob);
-				cameraFeed.src = videoURL;
+				currentVideoURL = URL.createObjectURL(blob);
+				cameraFeed.src = currentVideoURL;
 				cameraFeed.style.display = 'block';
 				placeholderImage.style.display = 'none';
 			  } else {
@@ -50,6 +64,11 @@ window.addEventListener('DOMContentLoaded', () => {
 		});
 
 	window.addEventListener('no-video', () => {
+		// Clean up video object URL when camera disconnects
+		if (currentVideoURL) {
+			URL.revokeObjectURL(currentVideoURL);
+			currentVideoURL = null;
+		}
 		cameraFeed.style.display = 'none';
 		placeholderImage.style.display = 'block';
 	});
@@ -69,7 +88,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 if (!haveEvents) {
-	setInterval(scangamepads, 500);
+	setInterval(scangamepads, GAMEPAD_POLL_INTERVAL);
 }
 
 function connecthandler(e) {
@@ -86,8 +105,8 @@ function addgamepad(gamepad) {  //set up the data structure for the gamepad
 	const t = document.createElement("div");
 	t.textContent = `gamepad: ${gamepad.id}`;
 	console.log("renderer sees: " + `gamepad: ${gamepad.id}`);
-	//gamepStatusElement.textContent = `Connected to: ${gamepad.id}`;
-	//const gamepStatusElement = document.getElementById('gamepStatus');
+	// Placeholder: gamepad status was displayed inline here, but moved to scangamepads() function
+	// Status is now managed via document.querySelector("#gamepStatus") visibility toggling
 
 	const b = document.createElement("ul");
 	b.className = "buttons";
@@ -149,9 +168,8 @@ function updateStatus() {
 	}
 	const allCommands = []; // Array to store all the commands
 	Object.entries(controllers).forEach(([i, controller]) => {
-
-		//gamepStatusElement.textContent = `Connected to: ${controller.id}`;
-		//console.log(`Connected to: ${controller.id}`);
+		// Placeholder: gamepad connection status logging - removed to reduce console spam
+		// Status is already shown in the UI via scangamepads() function
 
 		const d = document.getElementById(`controller${i}`);
 		const buttons = d.getElementsByClassName("button");
@@ -220,14 +238,10 @@ function scangamepads() {
 	}
 }
 
-/*function createCameraWindow() {
-	const videoElement = document.createElement("img");
-	videoElement.id = "cameraFeed";
-	videoElement.style.width = "480px"; // Ensure it scales to the container
-	videoElement.style.height = "320px"; // Maintain aspect ratio
-	cameraWindow.appendChild(videoElement);
-	console.log('camera window created');
-}*/
+// Placeholder: createCameraWindow() - Dynamically created camera feed element
+// This was replaced by static HTML elements in index.html (#cameraFeed and #placeholderImage)
+// The function would have created a 480x320 img element and appended it to the camera window
+// Now the camera feed is controlled via display:none/block CSS toggling in the message event handler
 
 // Trigger tone generation in the main process from the renderer
 function requestTonePlayback() {
@@ -264,7 +278,7 @@ function triggerRX() {
     turnOnLED(ledReceive);
 }
 
-function turnOnLED(ledElement, duration = 200) {
+function turnOnLED(ledElement, duration = LED_FLASH_DURATION) {
     ledElement.style.backgroundColor = '#00ff00';
     setTimeout(() => {
         ledElement.style.backgroundColor = '#333';

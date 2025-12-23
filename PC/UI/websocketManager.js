@@ -2,30 +2,15 @@
 const WebSocket = require('ws');
 const { getMainWindow } = require('./windowManager');
 const { ipcMain } = require('electron');
-const { stat } = require('original-fs');
+const state = require('./config');  // Import centralized state
 
 const PRIMARY_PORT = 8080;
 const BACKUP_PORT = 8081;
 let currentPort = PRIMARY_PORT;
-let wsCommand = null;
-let wsSound = null;
-let wsCamera = null;
 let reconnectTimeout = null;
-const reconnectInterval = 5000;
+const RECONNECT_INTERVAL = 5000;  // Heartbeat interval in ms
 let bufferCheckInterval = null;
 let heartbeatInterval;
-
-const state = {
-    isConnectedCommand: false,
-    isLonely: true,
-    isSoundConnected: false,
-    isCameraConnected: false,
-    isReadyForNextPacket: true,
-    isSoundPaused: false,
-    receptionRateKbps: 0,
-    onerror: false,
-    isConnectingCommand: false
-};
 
 function offline() {
     console.log('Entering offline mode...');
@@ -45,45 +30,45 @@ function offline() {
     }
 
     // Clean up Command WebSocket
-    if (wsCommand) {
+    if (state.wsCommand) {
         console.log('Closing Command WebSocket...');
         try {
-            wsCommand.removeAllListeners();
-            if (wsCommand.readyState !== WebSocket.CLOSED) {
-                wsCommand.terminate(); // Force close if not already closed
+            state.wsCommand.removeAllListeners();
+            if (state.wsCommand.readyState !== WebSocket.CLOSED) {
+                state.wsCommand.terminate(); // Force close if not already closed
             }
         } catch (err) {
             console.error('Error closing Command WebSocket:', err);
         }
-        wsCommand = null;
+        state.wsCommand = null;
     }
 
     // Clean up Sound WebSocket
-    if (wsSound) {
+    if (state.wsSound) {
         console.log('Closing Sound WebSocket...');
         try {
-            wsSound.removeAllListeners();
-            if (wsSound.readyState !== WebSocket.CLOSED) {
-                wsSound.terminate();
+            state.wsSound.removeAllListeners();
+            if (state.wsSound.readyState !== WebSocket.CLOSED) {
+                state.wsSound.terminate();
             }
         } catch (err) {
             console.error('Error closing Sound WebSocket:', err);
         }
-        wsSound = null;
+        state.wsSound = null;
     }
 
     // Clean up Camera WebSocket
-    if (wsCamera) {
+    if (state.wsCamera) {
         console.log('Closing Camera WebSocket...');
         try {
-            wsCamera.removeAllListeners();
-            if (wsCamera.readyState !== WebSocket.CLOSED) {
-                wsCamera.terminate();
+            state.wsCamera.removeAllListeners();
+            if (state.wsCamera.readyState !== WebSocket.CLOSED) {
+                state.wsCamera.terminate();
             }
         } catch (err) {
             console.error('Error closing Camera WebSocket:', err);
         }
-        wsCamera = null;
+        state.wsCamera = null;
     }
 
     // Reset state flags
@@ -94,7 +79,7 @@ function offline() {
     state.isCameraConnected = false;
 
     console.log('All connections cleaned up. Attempting to reconnect...');
-    
+
     // Directly attempt to reconnect
     connectCommand();
 }
@@ -105,22 +90,22 @@ function offline() {
 function connectCommand() {
     if (!state.isConnectedCommand && !state.isConnectingCommand) {
         console.log(`Attempting to connect to Command on port ${currentPort}...`);
-        state.isConnectingCommand = true;    
+        state.isConnectingCommand = true;
         // Start the connection attempt
-        wsCommand = new WebSocket(`ws://skuttlehost.local:${currentPort}/Command`);
+        state.wsCommand = new WebSocket(`ws://skuttlehost.local:${currentPort}/Command`);
         const connectTimeout = setTimeout(() => {
-            if (wsCommand.readyState !== WebSocket.OPEN) {
+            if (state.wsCommand.readyState !== WebSocket.OPEN) {
                 console.log(`Connection attempt to port ${currentPort} timed out.`);
-                wsCommand.terminate(); // Forcefully close the connection attempt
+                state.wsCommand.terminate(); // Forcefully close the connection attempt
                 if(state.isLonely) {currentPort = (currentPort === PRIMARY_PORT) ? BACKUP_PORT : PRIMARY_PORT;}
                 connectCommand();
             }
         }, 5000);
         // Attach listeners only once
-        wsCommand.on('open', handleOpen);
-        wsCommand.on('message', handleCommandMessage);
-        wsCommand.on('close', handleClose);
-        wsCommand.on('error', handleError);
+        state.wsCommand.on('open', handleOpen);
+        state.wsCommand.on('message', handleCommandMessage);
+        state.wsCommand.on('close', handleClose);
+        state.wsCommand.on('error', handleError);
     }
 }
 
@@ -129,7 +114,7 @@ function Heartbeat() {
 
     // Start a new heartbeat interval
     heartbeatInterval = setInterval(() => {
-        if (wsCommand && wsCommand.readyState === WebSocket.OPEN) {
+        if (state.wsCommand && state.wsCommand.readyState === WebSocket.OPEN) {
             if (state.isLonely) {
                 // Lonely state persists, no message received during the interval
                 console.log("No response received, assuming lost connection...");
@@ -138,7 +123,7 @@ function Heartbeat() {
             } else {
                 // Send a ping and set state to lonely until a response arrives
                 console.log("Heloooo is anybody there?...");
-                wsCommand.send('ping');
+                state.wsCommand.send('ping');
                 state.isLonely = true; // Assume lonely until cleared
             }
         } else {
@@ -146,7 +131,7 @@ function Heartbeat() {
             clearInterval(heartbeatInterval);
             offline();
         }
-    }, reconnectInterval);
+    }, RECONNECT_INTERVAL);
 }
 
 
@@ -172,7 +157,23 @@ function handleClose() {
 }
 
 function handleError(error) {
-    console.error(`Command error on port ${currentPort}: ${error}`);
+    console.error(`Command WebSocket error on port ${currentPort}:`, error);
+
+    // Categorize error types for better debugging
+    if (error.code === 'ECONNREFUSED') {
+        console.log('Connection refused - robot may be offline or on different port');
+        getMainWindow()?.webContents.send('status', 'Robot not responding...');
+    } else if (error.code === 'ETIMEDOUT') {
+        console.log('Connection timeout - switching ports and retrying');
+        getMainWindow()?.webContents.send('status', 'Connection timeout, retrying...');
+    } else if (error.code === 'ENOTFOUND') {
+        console.log('Host not found - check that robot is on network');
+        getMainWindow()?.webContents.send('status', 'Robot not found on network');
+    } else {
+        console.error('Unexpected WebSocket error:', error.message);
+        getMainWindow()?.webContents.send('status', `Connection error: ${error.message}`);
+    }
+
     state.isLonely = true;
     state.isConnectedCommand = false;
     state.isConnectingCommand = false;
@@ -225,9 +226,9 @@ function handleHeartbeat(message) {
 // Function to send a handshake
 function sendHandshake() {
     const handshakeData = `handshake,ID,SN`;
-    if (wsCommand && wsCommand.readyState === WebSocket.OPEN) {
+    if (state.wsCommand && state.wsCommand.readyState === WebSocket.OPEN) {
         console.log("Sending handshake...");
-        wsCommand.send(handshakeData);
+        state.wsCommand.send(handshakeData);
         getMainWindow().webContents.send('triggerTX');
     }
 }
@@ -235,27 +236,30 @@ function sendHandshake() {
 // Function to connect to the Sound WebSocket
 function connectSound() {
     console.log('Attempting to connect to Sound...');
-    wsSound = new WebSocket(`ws://skuttlehost.local:${currentPort}/Sound`);
+    state.wsSound = new WebSocket(`ws://skuttlehost.local:${currentPort}/Sound`);
 
-    wsSound.on('open', () => {
+    state.wsSound.on('open', () => {
         console.log('Sound WebSocket connected');
         state.isSoundConnected = true;
     });
 
-
-    wsSound.on('message', (message) => {
-        handleSoundMessage(message, wsSound);
+    state.wsSound.on('message', (message) => {
+        handleSoundMessage(message, state.wsSound);
         getMainWindow().webContents.send('triggerRX');
     });
 
-    wsSound.on('close', () => {
+    state.wsSound.on('close', () => {
         console.log('Sound connection closed');
         clearInterval(bufferCheckInterval);
         state.isSoundConnected = false;
     });
 
-    wsSound.on('error', (error) => {
+    state.wsSound.on('error', (error) => {
         console.error('Sound WebSocket error:', error);
+        if (error.code !== 'ECONNREFUSED') {
+            // Only log non-connection errors (connection errors are expected when sound isn't active)
+            console.error('Sound error details:', error.message);
+        }
         state.isSoundConnected = false;
     });
 }
@@ -263,33 +267,38 @@ function connectSound() {
 // Function to connect to the Camera WebSocket
 function connectCamera() {
     console.log('Attempting to connect to Camera...');
-    wsCamera = new WebSocket(`ws://skuttlehost.local:${PRIMARY_PORT}/Camera`);
+    state.wsCamera = new WebSocket(`ws://skuttlehost.local:${PRIMARY_PORT}/Camera`);
 
-    wsCamera.on('open', () => {
+    state.wsCamera.on('open', () => {
         console.log('Camera connected');
         state.isCameraConnected = true;
         getMainWindow().webContents.send('video', 'Camera Connected');
     });
 
-    wsCamera.on('close', () => {
+    state.wsCamera.on('close', () => {
         console.log('Camera connection closed');
         state.isCameraConnected = false;
         getMainWindow().webContents.send('no-video');
     });
 
-    wsCamera.on('error', (error) => {
+    state.wsCamera.on('error', (error) => {
         console.error('Camera WebSocket error:', error);
+        if (error.code !== 'ECONNREFUSED') {
+            console.error('Camera error details:', error.message);
+            getMainWindow()?.webContents.send('status', 'Camera connection issue');
+        }
         state.isCameraConnected = false;
+        getMainWindow()?.webContents.send('no-video');
     });
 }
 
 // Function to disconnect Sound
 function disconnectSound() {
-    if (wsSound) {
+    if (state.wsSound) {
         console.log('Disconnecting Sound WebSocket...');
-        wsSound.removeAllListeners();
-        wsSound.close();
-        wsSound = null;
+        state.wsSound.removeAllListeners();
+        state.wsSound.close();
+        state.wsSound = null;
     }
     clearInterval(bufferCheckInterval);
     bufferCheckInterval = null;
@@ -299,11 +308,11 @@ function disconnectSound() {
 
 // Function to disconnect Camera
 function disconnectCamera() {
-    if (wsCamera) {
+    if (state.wsCamera) {
         console.log('Disconnecting Camera WebSocket...');
-        wsCamera.removeAllListeners();
-        wsCamera.close();
-        wsCamera = null;
+        state.wsCamera.removeAllListeners();
+        state.wsCamera.close();
+        state.wsCamera = null;
     }
     state.isCameraConnected = false;
     state.isConnectingCamera = false;
