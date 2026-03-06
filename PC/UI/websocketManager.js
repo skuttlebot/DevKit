@@ -10,6 +10,7 @@ let currentPort = PRIMARY_PORT;
 let wsCommand = null;
 let wsSound = null;
 let wsCamera = null;
+let wsMic = null;
 let reconnectTimeout = null;
 const reconnectInterval = 5000;
 let bufferCheckInterval = null;
@@ -84,6 +85,20 @@ function offline() {
             console.error('Error closing Camera WebSocket:', err);
         }
         wsCamera = null;
+    }
+
+    // Clean up Mic WebSocket
+    if (wsMic) {
+        console.log('Closing Mic WebSocket...');
+        try {
+            wsMic.removeAllListeners();
+            if (wsMic.readyState !== WebSocket.CLOSED) {
+                wsMic.terminate();
+            }
+        } catch (err) {
+            console.error('Error closing Mic WebSocket:', err);
+        }
+        wsMic = null;
     }
 
     // Reset state flags
@@ -309,7 +324,34 @@ function disconnectCamera() {
     state.isConnectingCamera = false;
 }
 
+// Function to connect to the Mic WebSocket
+// Activated when HAS_AUDIO_IN is enabled on the ESP32 and INMP441 is wired
+function connectMic() {
+    if (wsMic) return;
+    console.log('Attempting to connect to Mic...');
+    wsMic = new WebSocket(`ws://skuttlehost.local:${currentPort}/Mic`);
+
+    wsMic.on('open', () => {
+        console.log('Mic WebSocket connected');
+    });
+
+    wsMic.on('message', (data) => {
+        // Binary PCM audio from INMP441 — forward to Althea via IPC
+        getMainWindow().webContents.send('micData', data);
+    });
+
+    wsMic.on('close', () => {
+        console.log('Mic connection closed');
+        wsMic = null;
+    });
+
+    wsMic.on('error', (error) => {
+        console.error('Mic WebSocket error:', error);
+        wsMic = null;
+    });
+}
+
 module.exports = {
     connectCommand,
-
+    connectMic,
 };

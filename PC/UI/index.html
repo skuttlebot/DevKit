@@ -8,58 +8,120 @@
 </head>
 <body>
   <div class="container">
-    <div class="left-column">
-      <button id="playToneButton" class="control-button">Play Tone</button>
-      <button id="streamToggleButton" class="control-button">Start Recording</button>
-    </div>
-    <div class="center-column">
-      <div class="dashboard">
-        <div class="connections">
-          <div id="connection-text">
-            <div id="status" class="status">Waiting for Device</div>
+
+    <!-- STATUS STRIP ─────────────────────────────────────────────────────── -->
+    <div class="status-strip">
+      <div class="strip-units">
+        <div class="unit-badge">
+          <span class="unit-label">HEAD</span>
+          <span id="headStatus" class="conn-dot disconnected"></span>
+        </div>
+        <div class="unit-badge">
+          <span class="unit-label">BODY</span>
+          <span id="bodyStatus" class="conn-dot disconnected"></span>
+        </div>
+      </div>
+      <div class="strip-center">
+        <span id="status" class="status-text">Waiting for Device</span>
+      </div>
+      <div class="strip-right">
+        <div class="led-row">
+          <div class="led-item">
+            <div id="ledReceive" class="led"></div>
+            <span class="led-label">RX</span>
           </div>
-          <div id="connection-signal" class="connections-signal">
-            <div class="signal-bar bar-1"></div>
-            <div class="signal-bar bar-2"></div>
-            <div class="signal-bar bar-3"></div>
-            <div class="signal-bar bar-4"></div>
-            <div class="signal-bar bar-5"></div>
+          <div class="led-item">
+            <div id="ledTransmit" class="led"></div>
+            <span class="led-label">TX</span>
           </div>
         </div>
-        <div class="gauges-leds">
-          <div class="leds">
-            <div class="led-container">
-              <div id="ledReceive" class="led"></div>
-              <div class="led-label">RX</div>
-            </div>
-            <div class="led-container">
-              <div id="ledTransmit" class="led"></div>
-              <div class="led-label">TX</div>
-            </div>
-          </div>
-          <div class="gauges">
-            <div class="fuel-gauge">
+        <div id="connection-signal" class="connections-signal">
+          <div class="signal-bar bar-1"></div>
+          <div class="signal-bar bar-2"></div>
+          <div class="signal-bar bar-3"></div>
+          <div class="signal-bar bar-4"></div>
+          <div class="signal-bar bar-5"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN BODY ─────────────────────────────────────────────────────────── -->
+    <div class="main-body">
+
+      <!-- LEFT COLUMN: Controls -->
+      <div class="left-column">
+        <div class="panel-section">
+          <div class="panel-label">DRIVE MODE</div>
+          <button id="dmBtn0" class="mode-button" data-mode="0">TURRET</button>
+          <button id="dmBtn1" class="mode-button" data-mode="1">TANK</button>
+          <button id="dmBtn2" class="mode-button" data-mode="2">CAR</button>
+        </div>
+        <div class="panel-section">
+          <div class="panel-label">AUDIO</div>
+          <button id="playToneButton" class="control-button">Play Tone</button>
+          <button id="streamToggleButton" class="control-button">Mic Record</button>
+        </div>
+        <div class="panel-section">
+          <div class="panel-label">CAMERA</div>
+          <button id="camToggleButton" class="control-button">Cam Toggle</button>
+          <div class="fuel-row">
+            <div class="fuel-gauge-v">
               <div id="fuelGaugeFill" class="fuel-gauge-fill"></div>
             </div>
-            <div class="fuel-label">
-              <span>Audio</span>
-            </div>
+            <span class="fuel-label">Audio</span>
           </div>
         </div>
       </div>
-      <div id="cameraWindow" class="camera-window">
-        <img id="cameraFeed" class="camera-feed" src="" alt="Camera Feed">
-        <img id="placeholderImage" class="placeholder-image" src="Docs/skuttlebot-fans.gif" alt="No Camera Feed" style="display: none;">
+
+      <!-- CENTER COLUMN: Camera feed -->
+      <div class="center-column">
+        <div id="cameraWindow" class="camera-window">
+          <img id="cameraFeed" class="camera-feed" src="" alt="Camera Feed" style="display:none;">
+          <img id="placeholderImage" class="placeholder-image" src="Docs/skuttlebot-fans.gif" alt="No Camera Feed">
+          <div id="liveIndicator" class="live-badge" style="display:none;">LIVE</div>
+          <button id="eStopBtn" class="estop-btn">E-STOP</button>
+        </div>
       </div>
-      <div id="commandLog" class="command-log">
-        <p>Command Log</p>
+
+      <!-- RIGHT COLUMN: Intent readout + event log -->
+      <div class="right-column">
+        <div id="gamepStatus" class="gamepad-status">No gamepad connected</div>
+        <div class="panel-section">
+          <div class="panel-label">INTENT</div>
+          <div class="intent-row">
+            <span class="intent-label">FWD</span>
+            <div class="meter-track">
+              <div class="meter-center-line"></div>
+              <div id="meterMoveY" class="meter-fill"></div>
+            </div>
+          </div>
+          <div class="intent-row">
+            <span class="intent-label">TURN</span>
+            <div class="meter-track">
+              <div class="meter-center-line"></div>
+              <div id="meterTurnZ" class="meter-fill"></div>
+            </div>
+          </div>
+          <div class="intent-row">
+            <span class="intent-label">TILT</span>
+            <div class="meter-track">
+              <div class="meter-center-line"></div>
+              <div id="meterTiltY" class="meter-fill"></div>
+            </div>
+          </div>
+          <div class="intent-row">
+            <span class="intent-label">SPD</span>
+            <div class="meter-track">
+              <div id="meterSpeed" class="meter-fill spd"></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-section panel-grow">
+          <div class="panel-label">EVENT LOG</div>
+          <ul id="eventLog" class="event-log"></ul>
+        </div>
       </div>
-    </div>
-    <div class="right-column">
-      <div id="gamepStatus" class="gamepad-status">No gamepad connected</div>
-      <div id="controllerOutput" class="controller-output">
-        <p>Insert controller and press any button</p>
-      </div>
+
     </div>
   </div>
   <script src="renderer.js"></script>

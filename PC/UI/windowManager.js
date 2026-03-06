@@ -6,15 +6,14 @@ let mainWindow = null;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 1100,
+        height: 720,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js'),
-            webSecurity: false,
-            allowRunningInsecureContent: true,
-            media: { videoCapture: true },
+            webSecurity: true,
+            allowRunningInsecureContent: false,
         }
     });
     mainWindow.loadFile('index.html');

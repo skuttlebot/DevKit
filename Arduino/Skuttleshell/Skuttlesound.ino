@@ -2,15 +2,14 @@
 #include "Skuttlesound.h"
 #include "driver/i2s.h"
 #include "esp_heap_caps.h"
-
+#include "config.h"
 
 #define I2S_PORT I2S_NUM_1
 #define BITS_PER_SAMPLE I2S_BITS_PER_SAMPLE_16BIT
 
 #define SAMPLE_RATE 16000
 #define I2S_BUFFER_SIZE   1024 //max allowed size
-#define CIRCULAR_BUFFER_SIZE (I2S_BUFFER_SIZE * 8) 
-#define FLASHLIGHT 4
+#define CIRCULAR_BUFFER_SIZE (I2S_BUFFER_SIZE * 8)
 
 uint8_t* circularBuffer = nullptr;
 size_t writeIndex = 0;  // Where to write incoming data
@@ -46,9 +45,9 @@ void Skuttlesound::begin() {
   };
 
   const i2s_pin_config_t pin_config = {
-      .bck_io_num = 14, // BLCK
-      .ws_io_num = 2, // LRC
-      .data_out_num = 15, // DIN 
+      .bck_io_num = I2S_BCLK,  // GPIO14
+      .ws_io_num = I2S_LRC,    // GPIO2
+      .data_out_num = I2S_DOUT, // GPIO21 (moved from GPIO15 - camera XCLK conflict on Freenove S3)
       .data_in_num = I2S_PIN_NO_CHANGE
   };
 

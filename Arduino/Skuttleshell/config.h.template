@@ -1,0 +1,32 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ─── Unit Type ───────────────────────────────────────────────────────────────
+// Uncomment exactly one:
+#define UNIT_TYPE_INTEGRATED
+// #define UNIT_TYPE_HEAD
+// #define UNIT_TYPE_BODY
+
+// ─── Feature Flags ───────────────────────────────────────────────────────────
+#define HAS_CAMERA
+#define HAS_AUDIO_OUT
+// #define HAS_AUDIO_IN
+// #define HAS_ESPNOW_TX
+// #define HAS_ESPNOW_RX
+
+// ─── Serial Bus Servo IDs ────────────────────────────────────────────────────
+#define SERVO_RIGHT_ID  1
+#define SERVO_LEFT_ID   2
+#define SERVO_TILT_ID   3
+
+// ─── WiFi Credentials ────────────────────────────────────────────────────────
+// Copy this file to config.h and fill in your credentials
+// config.h is listed in .gitignore and will NOT be committed
+#define WIFI_SSID "YOUR_SSID_HERE"
+#define WIFI_PASSWORD "YOUR_PASSWORD_HERE"
+
+// ─── Device Identity ─────────────────────────────────────────────────────────
+#define MODULE  "SkuttleCommandMK2"
+#define ID "SC0001"
+
+#endif

@@ -3,7 +3,7 @@
 #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include "config.h" // Include the configuration header
-//#define REDLIGHT 33
+//#define STATUS_LED 33
 
 
 
@@ -41,8 +41,8 @@ bool getCredentials(char* ssid, char* pass) {
 }
 
 void SkuttleWIFI::begin() {
-    //pinMode(REDLIGHT, OUTPUT);
-    //digitalWrite(REDLIGHT, HIGH);
+    //pinMode(STATUS_LED, OUTPUT);
+    //digitalWrite(STATUS_LED, HIGH);
     Serial.println("Initializing WiFi connection...");
     _connectToWiFi();
 }
@@ -55,7 +55,7 @@ void SkuttleWIFI::_connectToWiFi() {
     unsigned long startAttemptTime = millis();
     // Attempt to connect for up to 10 seconds
     while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) { 
-        digitalWrite(REDLIGHT, !digitalRead(REDLIGHT));
+        digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
         delay(500);
         Serial.print(".");
     }
@@ -79,7 +79,7 @@ void SkuttleWIFI::_connectToWiFi() {
         WiFi.begin(autossid, autopass);
         startAttemptTime = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 3000) {
-          digitalWrite(REDLIGHT, !digitalRead(REDLIGHT));
+          digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
           delay(500);
           Serial.print(".");
         }
@@ -89,7 +89,7 @@ void SkuttleWIFI::_connectToWiFi() {
         WiFi.begin(autossid, autopass);
         startAttemptTime = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 7000) {
-          digitalWrite(REDLIGHT, !digitalRead(REDLIGHT));
+          digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
           delay(500);
           Serial.print(".");
         }
@@ -102,7 +102,7 @@ void SkuttleWIFI::_connectToWiFi() {
     }else{
       Serial.println("No credentials found");
     }
-    digitalWrite(REDLIGHT, LOW);
+    digitalWrite(STATUS_LED, LOW);
     Serial.println("\nFailed to connect with predefined credentials. Launching WiFiManager...");
     WiFi.disconnect(true); // Ensure the WiFi driver is reset
     delay(500); // Ensure the WiFi state is reset
@@ -226,18 +226,18 @@ void flasherTask(void*parameter){
             ptime = millis();
             heartbeat();
           }else if ((millis() - ptime) > 3400){
-            digitalWrite(REDLIGHT, LOW); // turns on LED at 3.4
+            digitalWrite(STATUS_LED, LOW); // turns on LED at 3.4
           }else if ((millis() - ptime) > 3200){
-            digitalWrite(REDLIGHT, HIGH); // turns off LED at 3.2
+            digitalWrite(STATUS_LED, HIGH); // turns off LED at 3.2
           }else{
-            digitalWrite(REDLIGHT, LOW); // turns on LED at 3.0
+            digitalWrite(STATUS_LED, LOW); // turns on LED at 3.0
           }
         }
       }
     }else{ // no client
       if ((millis() - ptime) > 3000){
         if ((millis() - ptime) < 3200){
-          digitalWrite(REDLIGHT, LOW); // LED on between 3.0 and 3.2 with no client
+          digitalWrite(STATUS_LED, LOW); // LED on between 3.0 and 3.2 with no client
         }else{ // >3.2 with no client executes heartbeat
           ptime = millis();
           heartbeat();
@@ -294,5 +294,5 @@ void heartbeat()
     // Print the command to the serial monitor
     Serial.println(command);
 
-  digitalWrite(REDLIGHT, HIGH);
+  digitalWrite(STATUS_LED, HIGH);
 }

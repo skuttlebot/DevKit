@@ -1,18 +1,15 @@
 // main.js *top level functionality, starts window, sets up websocket, etc
 console.log('main program running');
-const path = require('path');
 const { app, ipcMain } = require('electron');
 const { createWindow, getMainWindow } = require('./windowManager');
 const state = require('./config');
-const { connectCommand} = require('./websocketManager');
+const { connectCommand, connectMic } = require('./websocketManager');
 const { sendToneOverWebSocket, startStreaming, stopStreaming } = require('./audioManager');
 
 // IPC communication with renderer process (renderer.js)
-ipcMain.on('r2m', (event, command) => {
-    const commandData = `command,${command.commandString}`;
-    console.log("Sent to Skuttlemove:", commandData);
+ipcMain.on('r2m', (_event, intentJSON) => {
     if (state.isConnectedCommand) {
-        state.wsCommand.send(commandData);
+        state.wsCommand.send(intentJSON);
         getMainWindow().webContents.send('triggerTX');
     }
 });
@@ -31,6 +28,13 @@ ipcMain.on('streamToggle', () => {
     } else {
         startStreaming(state.wsSound);
     }
+});
+
+// Called when ESP32 has HAS_AUDIO_IN enabled and INMP441 is wired.
+// Mic audio arrives as binary PCM and is forwarded to renderer via 'micData' IPC.
+// Althea can subscribe to 'micData' events for STT processing.
+ipcMain.on('connectMic', () => {
+    connectMic();
 });
 
 app.whenReady().then(() => {

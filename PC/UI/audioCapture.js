@@ -8,13 +8,13 @@ class AudioCapture extends EventEmitter {
         this.audioData = Buffer.alloc(0); // Ensure audioData is initialized
     }
 
-    startCapture(sampleRate) {
+    startCapture(sampleRate, deviceName = 'Stereo Mix (Realtek(R) Audio)') {
         const ffmpegCommand = [
-            '-f', 'dshow', // Windows
-            '-i', 'audio=Stereo Mix (Realtek(R) Audio)', // Adjust the input device name
-            '-ar', sampleRate.toString(), // Sample rate
-            '-ac', '1', // Set to mono
-            '-f', 'wav', // Output format
+            '-f', 'dshow',
+            '-i', `audio=${deviceName}`,
+            '-ar', sampleRate.toString(),
+            '-ac', '1',
+            '-f', 'wav',
             '-'
         ];
 

@@ -1,7 +1,7 @@
 //Skuttlecam handles camera functions
 #include "Skuttlecam.h"
 #include <esp_camera.h>
-#define CAMERA_MODEL_AI_THINKER  // Has PSRAM
+#define CAMERA_MODEL_FREENOVE_S3  // Has PSRAM
 #include "camera_pins.h"
 #include "camera_index.h"
 

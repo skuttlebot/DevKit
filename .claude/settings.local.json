@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:randomnerdtutorials.com)",
+      "WebFetch(domain:docs.cirkitdesigner.com)",
+      "WebFetch(domain:store.freenove.com)",
+      "WebFetch(domain:docs.freenove.com)"
+    ]
+  }
+}

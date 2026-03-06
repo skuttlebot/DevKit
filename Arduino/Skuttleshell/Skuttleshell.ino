@@ -37,8 +37,10 @@ Happy coding!
 #include "SkuttleWIFI.h"
 #include "Signalchk.h" //wifi monitoring
 #include "Skuttlesound.h"
-//#define FLASHLIGHT 4
-#define REDLIGHT 33
+#include "SkuttleESPNOW.h"      // ESP-NOW TX (active when HAS_ESPNOW_TX defined)
+#include <SkuttleCore.h>        // SkuttleIntent + SkuttleParser
+// STATUS_LED defined in config.h (GPIO48 WS2812 on Freenove S3)
+// Note: full RGB requires Adafruit NeoPixel library - pinMode/digitalWrite used as stub for now
 
 
 SkuttleWIFI skuttleWIFI;  //instance of SkuttleWIFI class
@@ -75,19 +77,16 @@ long mtime = millis();//motor timer
 const int mintraval = 100;
 long rssi;
 
-bool COMMAND[17];
-bool CAMON = false;
-bool REDSTATE = false;
-bool CPRESSED = false;
+SkuttleIntent currentIntent = {};  // latest intent from PC, consumed by move task
+bool CAMON    = false;
 bool ENDAUDIO = false;
-float MOVE[4];
-int cameraClientId = 0;
-int SoundClientId = 0;
-int packetcount=0;
+int  cameraClientId = 0;
+int  SoundClientId  = 0;
+int  packetcount    = 0;
 
 void setup()
 {
-  pinMode(REDLIGHT, OUTPUT);
+  pinMode(STATUS_LED, OUTPUT);
   Serial.begin(115200);
   Serial.println("Booting");
 
@@ -114,9 +113,6 @@ void loop()
 // Function to handle WebSocketCommand events
 void onWebSocketEventCommand(AsyncWebSocket *server, AsyncWebSocketClient *client,
 		AwsEventType type, void *arg, uint8_t *data, size_t len){
-	String command;
-	int index;
-	String identifier;
 	switch (type)
 	{
     case WS_EVT_CONNECT:
@@ -131,72 +127,34 @@ void onWebSocketEventCommand(AsyncWebSocket *server, AsyncWebSocketClient *clien
       //full stop routine!!!
       break;
     case WS_EVT_DATA:{
+      String msg = String((char*) data, len);
 
-      // The data is received, parse and process it
-      command = String((char*) data, len);
-      index = command.indexOf(',');
-      identifier = command.substring(0, index);
-      //Serial.printf("Data received: %s\n", command.c_str()); //("+");
-      if (identifier.equals("command"))
-      {
-        // Skip the identifier and read the rest of the data
-        command = command.substring(index + 1);
-        // Parse the data and populate the arrays
-        for (int i = 0; i < 21; i++)
-        {
-          index = command.indexOf(',');
-          String element = command.substring(0, index);
-          command = command.substring(index + 1);
-          if (i < 17)
-          {
-            COMMAND[i] = element.toInt();
-          }
-          else
-          {
-            MOVE[i - 17] = element.toFloat();
-          }
-        }
-        //camera server toggle
-        if (COMMAND[9])
-        {
-          CPRESSED = true;
-        }
-        if (CPRESSED)
-        {
-          if (!COMMAND[9])//
-          {
+      if (msg.startsWith("{")) {
+        // ── Intent JSON from PC ─────────────────────────────────────────────
+        SkuttleIntent intent;
+        if (SkuttleParser::parseIntent(msg, intent)) {
+          #ifdef HAS_ESPNOW_TX
+          static uint8_t seqN = 0;
+          intent.seqNum = seqN++;
+          SkuttleESPNOW::send(intent);
+          #endif
+          if (intent.cameraToggle) {
             CAMON = !CAMON;
-            if (CAMON)    //
-            {
-              String msg = "camconnect";
-              Serial.println(msg);//tells client to connect
-              wsCommand.textAll(msg);
-            }else {
-              String msg = "camdisconnect";
-              Serial.println(msg);//tells client to disconnect
-              wsCommand.textAll(msg);
-            }
-            CPRESSED = false;
+            wsCommand.textAll(CAMON ? "camconnect" : "camdisconnect");
           }
+          currentIntent = intent;
         }
+
+      } else if (msg.startsWith("handshake,")) {
+        // ── Handshake from PC ───────────────────────────────────────────────
+        int c = msg.indexOf(',', 10);
+        String rest = msg.substring(10);
+        Serial.println("received handshake: " + rest);
+
+      } else if (msg == "ping") {
+        wsCommand.textAll("pong");
       }
-      else if (identifier.equals("handshake"))
-      {
-        // Handle the handshake request
-        command = command.substring(index + 1);
-        index = command.indexOf(',');
-        String Clientname = command.substring(0, index);
-        String ClientSN = command.substring(index + 1);
-        Serial.println(
-            "recieved handshake: " + Clientname + ", " + ClientSN);
-      }
-      else if (identifier.equals("ping"))
-      {     
-        String msg = "pong";
-        Serial.print(msg);
-        wsCommand.textAll(msg);
-      }
-    } 
+    }
     break;
     
 	default://handle other cases here
