@@ -11,17 +11,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   playTone: () => ipcRenderer.send('playTone'),
   streamToggle: () => ipcRenderer.send('streamToggle'),
-  serverURL: 'http://localhost:5400', 
-  // Add any other properties/functions you want to expose
+  // Placeholder: serverURL was 'http://localhost:5400' for the unused Express server
+  // This can be removed entirely or repurposed for future HTTP endpoints
 });
 
 
-// Listen for statusmessages from the main process and forward them to the renderer
+// Listen for status messages from the main process and forward them to the renderer
 ipcRenderer.on('status', (event, message) => {
-    //console.log(`${message} recieved in preload`);
+    // Placeholder: console.log for debugging status messages - uncomment if needed for troubleshooting
     window.dispatchEvent(new MessageEvent('message', { data: { type: 'status', message } }));
 });
-
 
 ipcRenderer.on('no-video', () => {
   window.dispatchEvent(new CustomEvent('no-video'));
@@ -32,12 +31,12 @@ ipcRenderer.on('video', (event, message) => {
 });
 
 ipcRenderer.on('triggerTX', () => {
-  //console.log(`TriggerTX recieved in preload`);
+  // Placeholder: console.log for debugging TX events - uncomment if needed for troubleshooting
   window.dispatchEvent(new CustomEvent('triggerTX'));
 });
 
 ipcRenderer.on('triggerRX', () => {
-  //console.log(`TriggerRX recieved in preload`);
+  // Placeholder: console.log for debugging RX events - uncomment if needed for troubleshooting
   window.dispatchEvent(new CustomEvent('triggerRX'));
 });
 

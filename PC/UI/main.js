@@ -38,10 +38,11 @@ ipcMain.on('connectMic', () => {
 });
 
 app.whenReady().then(() => {
-    createWindow();
-    setTimeout(() => {
+    const mainWindow = createWindow();
+    // Wait for window to actually finish loading before connecting
+    mainWindow.webContents.on('did-finish-load', () => {
         ipcMain.emit('Ready'); // Trigger the connection setup via IPC
-    }, 100); // Slight delay to avoid race conditions
+    });
 });
 
 app.on('activate', () => {
