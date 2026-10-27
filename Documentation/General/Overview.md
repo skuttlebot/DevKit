@@ -44,11 +44,9 @@ The body may instead be used without a head. In that mode it provides its own
 
 ## Current-status snapshot
 
-The source contains a meaningful platform foundation, but the desktop-to-head
-control path is not currently verified as operational. In particular, the
-Electron main process reads connection state and socket objects from
-`PC/UI/config.js`, while `PC/UI/websocketManager.js` maintains separate,
-private state and sockets. See `INT-001` in
+The source contains a meaningful platform foundation. The desktop command path
+now has a single owner in `PC/UI/deviceSession.js`; it has a Node-level test,
+but still requires live hardware verification. See `INT-001` in
 [../Issues/KNOWN_ISSUES.md](../Issues/KNOWN_ISSUES.md).
 
 Treat these as distinct categories:

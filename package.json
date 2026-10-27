@@ -4,7 +4,8 @@
   "description": "Basic core program to issue commands to body",
   "main": "PC/UI/main.js",
   "scripts": {
-    "start": "electron PC/UI/main.js"
+    "start": "electron PC/UI/main.js",
+    "test": "node --test"
   },
   "repository": {
     "type": "git",

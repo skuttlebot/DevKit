@@ -9,17 +9,16 @@ unless hardware testing confirms it.
 
 ### INT-001 — Desktop command socket state is split
 
-**Severity:** high — blocks verified PC-to-robot control.
+**Status:** resolved in source; hardware verification pending.
 
-`PC/UI/main.js` checks `isConnectedCommand` and reads `wsCommand` from
-`PC/UI/config.js`. `PC/UI/websocketManager.js` instead owns separate local
-state and a separate local `wsCommand`, and exports neither socket nor state
-updates. As written, the main-process `r2m` handler has no demonstrated route
-to the socket opened by the connection manager.
+The original `config.js` / `websocketManager.js` split left the Electron main
+process without a demonstrated route to the socket it needed to send commands.
+`PC/UI/deviceSession.js` now owns the command socket, connection lifecycle,
+handshake, heartbeat, and command send operation. `main.js` calls its
+`sendIntent()` method instead of reading another module's mutable state.
 
-**Resolution direction:** make one module the authoritative owner of both
-socket lifecycle and connection state, then expose a small send API rather
-than sharing mutable socket references.
+The session has a Node-level test; the remaining verification is a live
+handshake, command, acknowledgement, and stop test against hardware.
 
 ### INT-002 — Camera frames do not reach the renderer
 
